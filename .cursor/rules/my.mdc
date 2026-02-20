@@ -1,0 +1,6 @@
+---
+alwaysApply: true
+---
+# Overview
+
+每次开发时查询根目录下的PROJECT_TRACKER.md来跟踪项目进度和相关信息，每次开发完一个新功能，要相应更新这个md文件保证长期维护。
