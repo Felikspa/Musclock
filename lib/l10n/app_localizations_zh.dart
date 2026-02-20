@@ -223,4 +223,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get broSplit => '分离训练';
+
+  @override
+  String get currentSession => '当前训练';
+
+  @override
+  String get done => '完成';
 }

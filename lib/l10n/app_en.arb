@@ -72,5 +72,7 @@
   "arms": "Arms",
   "ppl": "PPL",
   "upperLower": "Upper/Lower",
-  "broSplit": "Bro Split"
+  "broSplit": "Bro Split",
+  "currentSession": "Current Session",
+  "done": "Done"
 }

@@ -299,6 +299,34 @@ abstract class SyncService {
 | | | - 调整颜色增大对比度: Shoulders紫色、Back蓝绿色、Glutes粉红色 |
 | | | - 加深Arms橙色，在浅色主题下更易辨识 |
 | | | - 添加Glutes和Abs部位颜色定义 |
+| Feature Update | 2026-02-21 | Today页面交互优化 |
+| | | - Today页面: 修改显示格式为"部位 → 动作 → sets" |
+| | | - Today页面: Add Sets窗口集成部位和动作选择功能 |
+| | | - 用户可在Add Sets时选择部位、动作并输入重量和次数 |
+| Feature Update | 2026-02-21 | Today和Calendar页面显示优化 |
+| | | - Today页面: 保存session后显示当天训练记录 |
+| | | - Calendar页面: 训练内容作为标题，时间放次要位置 |
+| | | - Today页面: 已保存的训练记录显示训练内容作为标题 |
+| Feature Update | 2026-02-21 | Today和Calendar页面UI优化 |
+| | | - Today页面: 去掉顶部重复的Today标题 |
+| | | - Today页面: 卡片格式改为"部位(大字体左侧) + 时间(灰色小字体右侧)"换行显示动作和组数 |
+| | | - Calendar页面: 同样的卡片格式，可点击展开查看详情和编辑 |
+| Feature Update | 2026-02-21 | Today页面交互优化 |
+| | | - 点击New Session后直接弹出Add Exercise窗口 |
+| | | - 删除Start time显示和Add exercise按钮（在ActiveWorkoutView中） |
+| | | - 删除Save按钮，添加动作后自动保存到session |
+| Feature Update | 2026-02-21 | 部位和动作数据修复 |
+| | | - 添加Glutes和Abs训练部位 |
+| | | - 添加预设训练动作（每个部位4-5个动作） |
+| | | - 修复add exercise保存后刷新sessions列表 |
+| | | - 放大Add Exercise页面部位选择标题字体 |
+| Feature Update | 2026-02-21 | Today和Calendar页面功能增强 |
+| | | - Calendar页按训练项目展示，可展开查看详情和编辑 |
+| | | - Today页添加"完成"按钮，返回主界面 |
+| | | - 优化session逻辑：一小时内新建session自动归入同一session |
+| | | - 添加currentSession和done本地化字符串 |
+| Bugfix | 2026-02-21 | 修复本地化字符串缺失导致的编译错误 |
+| | | - 添加currentSession和done键到app_en.arb和app_zh.arb |
 
 ---
 

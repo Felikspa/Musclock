@@ -72,5 +72,7 @@
   "arms": "手臂",
   "ppl": "推拉腿",
   "upperLower": "上下身",
-  "broSplit": "分离训练"
+  "broSplit": "分离训练",
+  "currentSession": "当前训练",
+  "done": "完成"
 }

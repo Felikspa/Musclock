@@ -223,4 +223,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get broSplit => 'Bro Split';
+
+  @override
+  String get currentSession => 'Current Session';
+
+  @override
+  String get done => 'Done';
 }

@@ -529,6 +529,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bro Split'**
   String get broSplit;
+
+  /// No description provided for @currentSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Session'**
+  String get currentSession;
+
+  /// No description provided for @done.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get done;
 }
 
 class _AppLocalizationsDelegate

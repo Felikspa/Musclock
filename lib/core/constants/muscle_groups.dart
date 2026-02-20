@@ -21,13 +21,6 @@ class ExerciseDatabase {
       'Seated Cable Row',
       'T-Bar Row',
     ],
-    MuscleGroup.glutes: [
-      'Hip Thrust',
-      'Glute Bridge',
-      'Romanian Deadlift',
-      'Cable Kickback',
-      'Bulgarian Split Squat',
-    ],
     MuscleGroup.legs: [
       'Squat',
       'Leg Press',
@@ -56,14 +49,6 @@ class ExerciseDatabase {
       'Skull Crusher',
       'Preacher Curl',
     ],
-    MuscleGroup.abs: [
-      'Crunches',
-      'Plank',
-      'Leg Raise',
-      'Cable Crunch',
-      'Ab Wheel',
-      'Russian Twist',
-    ],
   };
   
   static List<String> getExercisesForMuscle(MuscleGroup muscle) {
@@ -78,47 +63,47 @@ class WorkoutTemplates {
       // Push Day
       1: [MuscleGroup.chest, MuscleGroup.shoulders, MuscleGroup.arms],
       // Pull Day  
-      2: [MuscleGroup.back, MuscleGroup.glutes, MuscleGroup.arms],
+      2: [MuscleGroup.back, MuscleGroup.arms],
       // Leg Day
-      3: [MuscleGroup.legs, MuscleGroup.glutes],
+      3: [MuscleGroup.legs],
       // Rest
       4: [MuscleGroup.rest],
       // Push Day
       5: [MuscleGroup.chest, MuscleGroup.shoulders, MuscleGroup.arms],
       // Pull Day
-      6: [MuscleGroup.back, MuscleGroup.glutes, MuscleGroup.arms],
+      6: [MuscleGroup.back, MuscleGroup.arms],
       // Leg Day
-      7: [MuscleGroup.legs, MuscleGroup.glutes],
+      7: [MuscleGroup.legs],
     },
     'Upper/Lower': {
       // Upper
       1: [MuscleGroup.chest, MuscleGroup.back, MuscleGroup.shoulders, MuscleGroup.arms],
       // Lower
-      2: [MuscleGroup.legs, MuscleGroup.glutes],
+      2: [MuscleGroup.legs],
       // Rest
       3: [MuscleGroup.rest],
       // Upper
       4: [MuscleGroup.chest, MuscleGroup.back, MuscleGroup.shoulders, MuscleGroup.arms],
       // Lower
-      5: [MuscleGroup.legs, MuscleGroup.glutes],
+      5: [MuscleGroup.legs],
       // Rest
       6: [MuscleGroup.rest],
-      // Abs
-      7: [MuscleGroup.abs],
+      // Rest
+      7: [MuscleGroup.rest],
     },
     'Bro Split': {
       // Chest
       1: [MuscleGroup.chest],
       // Back
-      2: [MuscleGroup.back, MuscleGroup.glutes],
+      2: [MuscleGroup.back],
       // Legs
       3: [MuscleGroup.legs],
       // Shoulders
       4: [MuscleGroup.shoulders],
       // Arms
       5: [MuscleGroup.arms],
-      // Abs
-      6: [MuscleGroup.abs],
+      // Rest
+      6: [MuscleGroup.rest],
       // Rest
       7: [MuscleGroup.rest],
     },

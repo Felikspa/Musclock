@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:drift/drift.dart';
 import 'app.dart';
 import 'data/database/database.dart';
 
@@ -12,8 +11,6 @@ void main() async {
   // Initialize default body parts
   await _initializeDefaultBodyParts();
   
-  debugPrint('[DEBUG] Database initialization complete, starting app...');
-  
   runApp(
     const ProviderScope(
       child: MuscleClockApp(),
@@ -22,12 +19,15 @@ void main() async {
 }
 
 Future<void> _initializeDefaultBodyParts() async {
-  debugPrint('[DEBUG] Creating database instance...');
   final db = AppDatabase();
   
-  debugPrint('[DEBUG] Checking existing body parts...');
+  // Check if body parts already exist
+  final existingParts = await db.getAllBodyParts();
+  if (existingParts.isNotEmpty) {
+    return; // Already initialized
+  }
   
-  // Define all body parts that should exist
+  // Add default body parts
   final defaultBodyParts = [
     BodyPartsCompanion.insert(
       id: 'body_chest',
@@ -37,11 +37,6 @@ Future<void> _initializeDefaultBodyParts() async {
     BodyPartsCompanion.insert(
       id: 'body_back',
       name: 'Back',
-      createdAt: DateTime.now().toUtc(),
-    ),
-    BodyPartsCompanion.insert(
-      id: 'body_glutes',
-      name: 'Glutes',
       createdAt: DateTime.now().toUtc(),
     ),
     BodyPartsCompanion.insert(
@@ -60,118 +55,206 @@ Future<void> _initializeDefaultBodyParts() async {
       createdAt: DateTime.now().toUtc(),
     ),
     BodyPartsCompanion.insert(
+      id: 'body_glutes',
+      name: 'Glutes',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    BodyPartsCompanion.insert(
       id: 'body_abs',
       name: 'Abs',
       createdAt: DateTime.now().toUtc(),
     ),
   ];
   
-  // Check and add each body part if it doesn't exist
-  for (final part in defaultBodyParts) {
-    final existing = await db.getBodyPartById(part.id.value);
-    if (existing == null) {
-      debugPrint('[DEBUG] Adding body part: ${part.name.value}');
-      await db.insertBodyPart(part);
-    }
-  }
-  
-  // Check if exercises exist, if not add them
-  final existingParts = await db.getAllBodyParts();
-  if (existingParts.isNotEmpty) {
-    final allExercises = await db.getAllExercises();
-    if (allExercises.isEmpty) {
-      debugPrint('[DEBUG] No exercises found, adding preset exercises...');
-      await _initializeDefaultExercises(db);
-    }
-    return; // Body parts already exist, no need to reinitialize
-  }
-  
-  debugPrint('[DEBUG] Inserting default body parts...');
-  
   for (final part in defaultBodyParts) {
     await db.insertBodyPart(part);
   }
   
-  // Add preset exercises for each body part
+  // Initialize default exercises
   await _initializeDefaultExercises(db);
 }
 
 Future<void> _initializeDefaultExercises(AppDatabase db) async {
-  debugPrint('[DEBUG] Inserting default exercises...');
-  
   // Check if exercises already exist
   final existingExercises = await db.getAllExercises();
   if (existingExercises.isNotEmpty) {
-    debugPrint('[DEBUG] Exercises already exist, skipping...');
-    return;
+    return; // Already initialized
   }
   
-  // Preset exercises mapped by body part ID
-  final presetExercises = <String, List<String>>{
-    'body_chest': [
-      'Bench Press',
-      'Incline Bench Press',
-      'Decline Bench Press',
-      'Dumbbell Fly',
-      'Push-ups',
-      'Dips',
-    ],
-    'body_back': [
-      'Deadlift',
-      'Pull-ups',
-      'Lat Pulldown',
-      'Barbell Row',
-      'Dumbbell Row',
-    ],
-    'body_glutes': [
-      'Hip Thrust',
-      'Glute Bridge',
-      'Romanian Deadlift',
-      'Cable Kickback',
-    ],
-    'body_legs': [
-      'Squat',
-      'Leg Press',
-      'Lunges',
-      'Leg Extension',
-      'Leg Curl',
-      'Calf Raise',
-    ],
-    'body_shoulders': [
-      'Overhead Press',
-      'Dumbbell Shoulder Press',
-      'Lateral Raise',
-      'Front Raise',
-      'Face Pull',
-    ],
-    'body_arms': [
-      'Barbell Curl',
-      'Dumbbell Curl',
-      'Hammer Curl',
-      'Tricep Pushdown',
-      'Tricep Dips',
-    ],
-    'body_abs': [
-      'Crunches',
-      'Plank',
-      'Leg Raise',
-      'Cable Crunch',
-      'Russian Twist',
-    ],
-  };
+  // Default exercises for each body part
+  final defaultExercises = [
+    // Chest exercises
+    ExercisesCompanion.insert(
+      id: 'ex_bench_press',
+      name: 'Bench Press',
+      bodyPartId: 'body_chest',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_incline_press',
+      name: 'Incline Press',
+      bodyPartId: 'body_chest',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_push_up',
+      name: 'Push Up',
+      bodyPartId: 'body_chest',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_cable_fly',
+      name: 'Cable Fly',
+      bodyPartId: 'body_chest',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    // Back exercises
+    ExercisesCompanion.insert(
+      id: 'ex_deadlift',
+      name: 'Deadlift',
+      bodyPartId: 'body_back',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_lat_pulldown',
+      name: 'Lat Pulldown',
+      bodyPartId: 'body_back',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_barbell_row',
+      name: 'Barbell Row',
+      bodyPartId: 'body_back',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_pull_up',
+      name: 'Pull Up',
+      bodyPartId: 'body_back',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    // Legs exercises
+    ExercisesCompanion.insert(
+      id: 'ex_squat',
+      name: 'Squat',
+      bodyPartId: 'body_legs',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_leg_press',
+      name: 'Leg Press',
+      bodyPartId: 'body_legs',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_lunge',
+      name: 'Lunge',
+      bodyPartId: 'body_legs',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_leg_curl',
+      name: 'Leg Curl',
+      bodyPartId: 'body_legs',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    // Shoulders exercises
+    ExercisesCompanion.insert(
+      id: 'ex_overhead_press',
+      name: 'Overhead Press',
+      bodyPartId: 'body_shoulders',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_lateral_raise',
+      name: 'Lateral Raise',
+      bodyPartId: 'body_shoulders',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_front_raise',
+      name: 'Front Raise',
+      bodyPartId: 'body_shoulders',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_face_pull',
+      name: 'Face Pull',
+      bodyPartId: 'body_shoulders',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    // Arms exercises
+    ExercisesCompanion.insert(
+      id: 'ex_bicep_curl',
+      name: 'Bicep Curl',
+      bodyPartId: 'body_arms',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_tricep_pushdown',
+      name: 'Tricep Pushdown',
+      bodyPartId: 'body_arms',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_hammer_curl',
+      name: 'Hammer Curl',
+      bodyPartId: 'body_arms',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_tricep_extension',
+      name: 'Tricep Extension',
+      bodyPartId: 'body_arms',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    // Glutes exercises
+    ExercisesCompanion.insert(
+      id: 'ex_hip_thrust',
+      name: 'Hip Thrust',
+      bodyPartId: 'body_glutes',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_glute_bridge',
+      name: 'Glute Bridge',
+      bodyPartId: 'body_glutes',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_cable_kickback',
+      name: 'Cable Kickback',
+      bodyPartId: 'body_glutes',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    // Abs exercises
+    ExercisesCompanion.insert(
+      id: 'ex_crunch',
+      name: 'Crunch',
+      bodyPartId: 'body_abs',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_plank',
+      name: 'Plank',
+      bodyPartId: 'body_abs',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_leg_raise',
+      name: 'Leg Raise',
+      bodyPartId: 'body_abs',
+      createdAt: DateTime.now().toUtc(),
+    ),
+    ExercisesCompanion.insert(
+      id: 'ex_russian_twist',
+      name: 'Russian Twist',
+      bodyPartId: 'body_abs',
+      createdAt: DateTime.now().toUtc(),
+    ),
+  ];
   
-  int exerciseId = 1;
-  for (final entry in presetExercises.entries) {
-    final bodyPartId = entry.key;
-    for (final exerciseName in entry.value) {
-      await db.insertExercise(ExercisesCompanion.insert(
-        id: 'exercise_${exerciseId++}',
-        name: exerciseName,
-        bodyPartId: bodyPartId,
-        createdAt: DateTime.now().toUtc(),
-      ));
-    }
+  for (final exercise in defaultExercises) {
+    await db.insertExercise(exercise);
   }
-  
-  debugPrint('[DEBUG] Default exercises inserted successfully');
 }

@@ -27,6 +27,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sessionsAsync = ref.watch(sessionsProvider);
 
@@ -304,15 +305,10 @@ class _DayDetailCard extends ConsumerWidget {
           const SizedBox(height: 16),
           if (sessions.isNotEmpty)
             Expanded(
-              child: ListView.builder(
-                itemCount: sessions.length,
-                itemBuilder: (context, index) {
-                  return _SessionCard(
-                    session: sessions[index],
-                    isDark: isDark,
-                    l10n: l10n,
-                  );
-                },
+              child: _ExerciseRecordsList(
+                sessions: sessions,
+                isDark: isDark,
+                l10n: l10n,
               ),
             )
           else
@@ -370,7 +366,276 @@ class _DayDetailCard extends ConsumerWidget {
   }
 }
 
-class _SessionCard extends ConsumerWidget {
+// Display all exercise records from all sessions for a day
+class _ExerciseRecordsList extends ConsumerWidget {
+  final List<WorkoutSession> sessions;
+  final bool isDark;
+  final AppLocalizations l10n;
+
+  const _ExerciseRecordsList({
+    required this.sessions,
+    required this.isDark,
+    required this.l10n,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final db = ref.watch(databaseProvider);
+
+    return FutureBuilder<List<_ExerciseRecordWithSession>>(
+      future: _getAllExerciseRecords(db),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final exerciseRecords = snapshot.data!;
+        
+        if (exerciseRecords.isEmpty) {
+          return Center(
+            child: Text(
+              l10n.noData,
+              style: TextStyle(
+                color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+              ),
+            ),
+          );
+        }
+
+        // Group by exercise for display
+        return ListView.builder(
+          itemCount: exerciseRecords.length,
+          itemBuilder: (context, index) {
+            return _ExerciseRecordCard(
+              exerciseRecord: exerciseRecords[index],
+              isDark: isDark,
+              l10n: l10n,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<List<_ExerciseRecordWithSession>> _getAllExerciseRecords(AppDatabase db) async {
+    final List<_ExerciseRecordWithSession> allRecords = [];
+
+    for (final session in sessions) {
+      final records = await db.getRecordsBySession(session.id);
+      for (final record in records) {
+        final exercise = await db.getExerciseById(record.exerciseId);
+        if (exercise != null) {
+          final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
+          final sets = await db.getSetsByExerciseRecord(record.id);
+          allRecords.add(_ExerciseRecordWithSession(
+            record: record,
+            session: session,
+            exercise: exercise,
+            bodyPart: bodyPart,
+            sets: sets,
+          ));
+        }
+      }
+    }
+
+    // Sort by session start time
+    allRecords.sort((a, b) => a.session.startTime.compareTo(b.session.startTime));
+    
+    return allRecords;
+  }
+}
+
+class _ExerciseRecordWithSession {
+  final ExerciseRecord record;
+  final WorkoutSession session;
+  final Exercise exercise;
+  final BodyPart? bodyPart;
+  final List<SetRecord> sets;
+
+  _ExerciseRecordWithSession({
+    required this.record,
+    required this.session,
+    required this.exercise,
+    required this.bodyPart,
+    required this.sets,
+  });
+}
+
+// Individual exercise record card that can be expanded and edited
+class _ExerciseRecordCard extends ConsumerStatefulWidget {
+  final _ExerciseRecordWithSession exerciseRecord;
+  final bool isDark;
+  final AppLocalizations l10n;
+
+  const _ExerciseRecordCard({
+    required this.exerciseRecord,
+    required this.isDark,
+    required this.l10n,
+  });
+
+  @override
+  ConsumerState<_ExerciseRecordCard> createState() => _ExerciseRecordCardState();
+}
+
+class _ExerciseRecordCardState extends ConsumerState<_ExerciseRecordCard> {
+  bool _isExpanded = false;
+  bool _isEditing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final timeFormat = DateFormat('HH:mm');
+    final exercise = widget.exerciseRecord;
+    final bodyPartName = exercise.bodyPart?.name ?? '';
+    final exerciseName = exercise.exercise.name;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          // Clickable header
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  // Body part name (large)
+                  Expanded(
+                    child: Text(
+                      bodyPartName.isNotEmpty ? '$bodyPartName: $exerciseName' : exerciseName,
+                      style: TextStyle(
+                        color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  // Time
+                  Text(
+                    timeFormat.format(exercise.session.startTime),
+                    style: TextStyle(
+                      color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _isExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                    color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Expanded content
+          if (_isExpanded) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Sets display
+                  if (exercise.sets.isNotEmpty) ...[
+                    Text(
+                      widget.l10n.sets,
+                      style: TextStyle(
+                        color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: exercise.sets.map((set) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '${set.weight}kg x ${set.reps}',
+                            style: TextStyle(
+                              color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                              fontSize: 12,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ] else ...[
+                    Text(
+                      widget.l10n.noData,
+                      style: TextStyle(
+                        color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  
+                  const SizedBox(height: 12),
+                  
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _isEditing = !_isEditing;
+                            });
+                          },
+                          icon: Icon(_isEditing ? Icons.close : Icons.edit, size: 16),
+                          label: Text(_isEditing ? widget.l10n.cancel : widget.l10n.edit),
+                        ),
+                      ),
+                      if (_isEditing) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => _saveChanges(context),
+                            icon: const Icon(Icons.save, size: 16),
+                            label: Text(widget.l10n.save),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveChanges(BuildContext context) async {
+    // TODO: Implement edit functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Edit functionality coming soon')),
+    );
+    setState(() {
+      _isEditing = false;
+      _isExpanded = false;
+    });
+  }
+}
+
+class _SessionCard extends ConsumerStatefulWidget {
   final WorkoutSession session;
   final bool isDark;
   final AppLocalizations l10n;
@@ -382,125 +647,239 @@ class _SessionCard extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final recordsAsync = ref.watch(_recordsProvider(session.id));
-    final bodyPartsAsync = ref.watch(_sessionBodyPartsProvider(session.id));
+  ConsumerState<_SessionCard> createState() => _SessionCardState();
+}
+
+class _SessionCardState extends ConsumerState<_SessionCard> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final recordsAsync = ref.watch(_recordsProvider(widget.session.id));
     final timeFormat = DateFormat('HH:mm');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+        color: widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
         borderRadius: BorderRadius.circular(8),
       ),
+      child: recordsAsync.when(
+        data: (records) => _buildContent(context, records, timeFormat),
+        loading: () => const Padding(
+          padding: EdgeInsets.all(12),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (e, s) => Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text('Error: $e'),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, List<ExerciseRecord> records, DateFormat timeFormat) {
+    return FutureBuilder<_SessionDisplayDataCalendar>(
+      future: _getSessionDisplayData(records),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final data = snapshot.data!;
+
+        return Column(
+          children: [
+            // Clickable header
+            InkWell(
+              onTap: () {
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                });
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header: Body parts on left (large), time on right (small gray)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Main title: body parts
+                        Expanded(
+                          child: Text(
+                            data.bodyParts.isNotEmpty ? data.bodyParts.join(' + ') : widget.l10n.noData,
+                            style: TextStyle(
+                              color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        // Time on right
+                        Text(
+                          timeFormat.format(widget.session.startTime),
+                          style: TextStyle(
+                            color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        // Expand icon
+                        Icon(
+                          _isExpanded ? Icons.expand_less : Icons.expand_more,
+                          size: 18,
+                          color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Expanded content - exercise details
+            if (_isExpanded) ...[
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Exercise details
+                    ...data.exercises.map((exercise) => _buildExerciseItem(context, exercise)),
+                    
+                    const SizedBox(height: 8),
+                    
+                    // Edit button
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _editSession(context),
+                        icon: const Icon(Icons.edit, size: 16),
+                        label: Text(widget.l10n.edit),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildExerciseItem(BuildContext context, _ExerciseWithSetsCalendar exercise) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Show body parts in primary position
-              Expanded(
-                child: bodyPartsAsync.when(
-                  data: (bodyParts) {
-                    if (bodyParts.isEmpty) {
-                      return Text(
-                        l10n.noData,
-                        style: TextStyle(
-                          color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      );
-                    }
-                    return Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: bodyParts.map((bp) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.accent.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          bp,
-                          style: const TextStyle(
-                            color: AppTheme.accent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      )).toList(),
-                    );
-                  },
-                  loading: () => const Text('...'),
-                  error: (_, __) => Text(l10n.noData),
-                ),
-              ),
-              // Time in secondary position
-              Row(
-                children: [
-                  Text(
-                    timeFormat.format(session.startTime),
+          // Exercise name
+          Text(
+            exercise.name,
+            style: TextStyle(
+              color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          
+          // Sets - only show if there are sets
+          if (exercise.sets.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Wrap(
+              spacing: 6,
+              runSpacing: 2,
+              children: exercise.sets.map((set) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    '${set.weight}kg x ${set.reps}',
                     style: TextStyle(
-                      color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                      fontSize: 12,
+                      color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                      fontSize: 11,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => _showEditSessionSheet(context, ref),
-                    child: Icon(
-                      Icons.edit,
-                      size: 16,
-                      color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Show exercise names below
-          recordsAsync.when(
-            data: (records) {
-              if (records.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              return Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: records.map((record) {
-                  return _ExerciseChip(exerciseId: record.exerciseId, isDark: isDark);
-                }).toList(),
-              );
-            },
-            loading: () => const Text('...'),
-            error: (e, s) => Text('Error: $e'),
-          ),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  void _showEditSessionSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => _CalendarEditSessionSheet(
-          scrollController: scrollController,
-          session: session,
-          l10n: l10n,
-        ),
-      ),
+  Future<_SessionDisplayDataCalendar> _getSessionDisplayData(List<ExerciseRecord> records) async {
+    final db = ref.read(databaseProvider);
+    final Map<String, _ExerciseWithSetsCalendar> exerciseMap = {};
+    final Set<String> bodyParts = {};
+
+    for (final record in records) {
+      final exercise = await db.getExerciseById(record.exerciseId);
+      if (exercise != null) {
+        final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
+        if (bodyPart != null) {
+          bodyParts.add(bodyPart.name);
+        }
+        
+        // Get sets for this record
+        final sets = await db.getSetsByExerciseRecord(record.id);
+        
+        if (exerciseMap.containsKey(exercise.id)) {
+          exerciseMap[exercise.id]!.sets.addAll(sets);
+        } else {
+          exerciseMap[exercise.id] = _ExerciseWithSetsCalendar(
+            name: exercise.name,
+            sets: sets,
+          );
+        }
+      }
+    }
+
+    return _SessionDisplayDataCalendar(
+      bodyParts: bodyParts.toList(),
+      exercises: exerciseMap.values.toList(),
     );
   }
+
+  void _editSession(BuildContext context) {
+    // TODO: Navigate to edit session view
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Edit functionality coming soon')),
+    );
+  }
+}
+
+// Data class for calendar session display
+class _SessionDisplayDataCalendar {
+  final List<String> bodyParts;
+  final List<_ExerciseWithSetsCalendar> exercises;
+
+  _SessionDisplayDataCalendar({
+    required this.bodyParts,
+    required this.exercises,
+  });
+}
+
+class _ExerciseWithSetsCalendar {
+  final String name;
+  final List<SetRecord> sets;
+
+  _ExerciseWithSetsCalendar({
+    required this.name,
+    required this.sets,
+  });
 }
 
 final _recordsProvider = FutureProvider.family<List<ExerciseRecord>, String>((ref, sessionId) async {
@@ -509,35 +888,45 @@ final _recordsProvider = FutureProvider.family<List<ExerciseRecord>, String>((re
 });
 
 class _ExerciseChip extends ConsumerWidget {
-  final String exerciseId;
+  final String recordId;
   final bool isDark;
 
   const _ExerciseChip({
-    required this.exerciseId,
+    required this.recordId,
     required this.isDark,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final exerciseAsync = ref.watch(_exerciseProvider(exerciseId));
+    final recordsAsync = ref.watch(_recordsProvider(recordId));
 
-    return exerciseAsync.when(
-      data: (exercise) {
-        if (exercise == null) return const SizedBox.shrink();
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppTheme.accent.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            exercise.name,
-            style: const TextStyle(
-              color: AppTheme.accent,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+    return recordsAsync.when(
+      data: (records) {
+        if (records.isEmpty) return const SizedBox.shrink();
+        final record = records.first;
+        final exerciseAsync = ref.watch(_exerciseProvider(record.exerciseId));
+
+        return exerciseAsync.when(
+          data: (exercise) {
+            if (exercise == null) return const SizedBox.shrink();
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                exercise.name,
+                style: const TextStyle(
+                  color: AppTheme.accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, _) => const SizedBox.shrink(),
         );
       },
       loading: () => const SizedBox.shrink(),
@@ -549,295 +938,4 @@ class _ExerciseChip extends ConsumerWidget {
 final _exerciseProvider = FutureProvider.family<Exercise?, String>((ref, exerciseId) async {
   final db = ref.watch(databaseProvider);
   return db.getExerciseById(exerciseId);
-});
-
-// Provider to get body part names for a session
-final _sessionBodyPartsProvider = FutureProvider.family<List<String>, String>((ref, sessionId) async {
-  final db = ref.watch(databaseProvider);
-  final records = await db.getRecordsBySession(sessionId);
-  final bodyPartNames = <String>[];
-  
-  for (final record in records) {
-    final exercise = await db.getExerciseById(record.exerciseId);
-    if (exercise != null) {
-      final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
-      if (bodyPart != null && !bodyPartNames.contains(bodyPart.name)) {
-        bodyPartNames.add(bodyPart.name);
-      }
-    }
-  }
-  return bodyPartNames;
-});
-
-class _CalendarEditSessionSheet extends ConsumerWidget {
-  final ScrollController scrollController;
-  final WorkoutSession session;
-  final AppLocalizations l10n;
-
-  const _CalendarEditSessionSheet({
-    required this.scrollController,
-    required this.session,
-    required this.l10n,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final recordsAsync = ref.watch(_recordsProvider(session.id));
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            l10n.sessionDetails,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: recordsAsync.when(
-              data: (records) {
-                if (records.isEmpty) {
-                  return Center(child: Text(l10n.noData));
-                }
-                return ListView.builder(
-                  controller: scrollController,
-                  itemCount: records.length,
-                  itemBuilder: (context, index) {
-                    return _CalendarEditableExerciseCard(
-                      record: records[index],
-                      l10n: l10n,
-                    );
-                  },
-                );
-              },
-              loading: () => const CircularProgressIndicator(),
-              error: (e, s) => Text('Error: $e'),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => _showDeleteSessionDialog(context, ref),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-              ),
-              child: Text(l10n.delete),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteSessionDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.confirmDelete),
-        content: Text(l10n.deleteConfirmation),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.no),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final db = ref.read(databaseProvider);
-              final records = await db.getRecordsBySession(session.id);
-              for (final record in records) {
-                await db.deleteSetsByExerciseRecord(record.id);
-              }
-              await db.deleteRecordsBySession(session.id);
-              await db.deleteSession(session.id);
-              ref.invalidate(sessionsProvider);
-              if (context.mounted) {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Close bottom sheet
-              }
-            },
-            child: Text(l10n.yes),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CalendarEditableExerciseCard extends ConsumerWidget {
-  final ExerciseRecord record;
-  final AppLocalizations l10n;
-
-  const _CalendarEditableExerciseCard({
-    required this.record,
-    required this.l10n,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final exerciseAsync = ref.watch(_exerciseProvider(record.id));
-    final setsAsync = ref.watch(_setsProvider(record.id));
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            exerciseAsync.when(
-              data: (exercise) => Text(
-                exercise?.name ?? 'Unknown',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              loading: () => const Text('...'),
-              error: (_, __) => const Text('Error'),
-            ),
-            const Divider(),
-            setsAsync.when(
-              data: (sets) {
-                return Column(
-                  children: sets.asMap().entries.map((entry) {
-                    final setIndex = entry.key;
-                    final set = entry.value;
-                    return _CalendarEditableSetRow(
-                      set: set,
-                      setIndex: setIndex,
-                      recordId: record.id,
-                    );
-                  }).toList(),
-                );
-              },
-              loading: () => const CircularProgressIndicator(),
-              error: (e, s) => Text('Error: $e'),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () => _showAddSetDialog(context, ref),
-              icon: const Icon(Icons.add, size: 18),
-              label: Text(l10n.addSets),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAddSetDialog(BuildContext context, WidgetRef ref) {
-    final weightController = TextEditingController(text: '0');
-    final repsController = TextEditingController(text: '0');
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.addSets),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: weightController,
-              decoration: InputDecoration(labelText: l10n.weight),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: repsController,
-              decoration: InputDecoration(labelText: l10n.reps),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final weight = double.tryParse(weightController.text) ?? 0;
-              final reps = int.tryParse(repsController.text) ?? 0;
-              if (weight > 0 && reps > 0) {
-                final db = ref.read(databaseProvider);
-                final sets = await db.getSetsByExerciseRecord(record.id);
-                await db.insertSetRecord(SetRecordsCompanion.insert(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  exerciseRecordId: record.id,
-                  weight: weight,
-                  reps: reps,
-                  orderIndex: sets.length,
-                ));
-                ref.invalidate(_setsProvider(record.id));
-                if (context.mounted) Navigator.pop(context);
-              }
-            },
-            child: Text(l10n.save),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CalendarEditableSetRow extends ConsumerWidget {
-  final SetRecord set;
-  final int setIndex;
-  final String recordId;
-
-  const _CalendarEditableSetRow({
-    required this.set,
-    required this.setIndex,
-    required this.recordId,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 14,
-            child: Text(
-              '${set.orderIndex + 1}',
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text('${set.weight} kg'),
-          const SizedBox(width: 8),
-          Text('x ${set.reps}'),
-          const Spacer(),
-          Text(
-            '${(set.weight * set.reps).toStringAsFixed(1)}',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: () async {
-              final db = ref.read(databaseProvider);
-              await db.deleteSetRecord(set.id);
-              ref.invalidate(_setsProvider(recordId));
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-final _setsProvider = FutureProvider.family<List<SetRecord>, String>((ref, exerciseRecordId) async {
-  final db = ref.watch(databaseProvider);
-  return db.getSetsByExerciseRecord(exerciseRecordId);
 });

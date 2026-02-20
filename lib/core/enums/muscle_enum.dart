@@ -1,10 +1,10 @@
 enum MuscleGroup {
   chest('Chest', '胸'),
   back('Back', '背'),
-  glutes('Glutes', '臀'),
   legs('Legs', '腿'),
   shoulders('Shoulders', '肩'),
-  arms('Arms', '臂'),
+  arms('Arms', '手臂'),
+  glutes('Glutes', '臀'),
   abs('Abs', '腹'),
   rest('Rest', '休息');
 
@@ -18,12 +18,12 @@ enum MuscleGroup {
     switch (this) {
       case MuscleGroup.chest:
       case MuscleGroup.back:
-      case MuscleGroup.glutes:
       case MuscleGroup.legs:
         return 72;
       case MuscleGroup.shoulders:
         return 48;
       case MuscleGroup.arms:
+      case MuscleGroup.glutes:
       case MuscleGroup.abs:
         return 24;
       case MuscleGroup.rest:
@@ -36,12 +36,12 @@ enum MuscleGroup {
     switch (this) {
       case MuscleGroup.chest:
       case MuscleGroup.back:
-      case MuscleGroup.glutes:
       case MuscleGroup.legs:
         return 1.0;
       case MuscleGroup.shoulders:
         return 0.8;
       case MuscleGroup.arms:
+      case MuscleGroup.glutes:
       case MuscleGroup.abs:
         return 0.6;
       case MuscleGroup.rest:
