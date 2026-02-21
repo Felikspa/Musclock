@@ -23,8 +23,10 @@ class AddExerciseSheet extends ConsumerStatefulWidget {
 }
 
 class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
-  String? _selectedBodyPartId;
-  String? _selectedExerciseId;
+  // Support multi-select for body parts
+  final Set<String> _selectedBodyPartIds = {};
+  // Support multi-select for exercises
+  final Set<String> _selectedExerciseIds = {};
 
   @override
   Widget build(BuildContext context) {
@@ -54,24 +56,57 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
           ),
           const SizedBox(height: 16),
 
-          // Body Part Selection
-          Text(widget.l10n.selectBodyPart, style: Theme.of(context).textTheme.titleMedium),
+          // Body Part Selection (Multi-select)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(widget.l10n.selectBodyPart, style: Theme.of(context).textTheme.titleMedium),
+              if (_selectedBodyPartIds.isNotEmpty)
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedBodyPartIds.clear();
+                      _selectedExerciseIds.clear();
+                    });
+                  },
+                  child: const Text('Clear'),
+                ),
+            ],
+          ),
           const SizedBox(height: 8),
           bodyPartsAsync.when(
             data: (bodyParts) => Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                ...bodyParts.map((bp) => ChoiceChip(
+                ...bodyParts.map((bp) => FilterChip(
                       label: Text(
                         bp.name,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                       ),
-                      selected: _selectedBodyPartId == bp.id,
+                      selected: _selectedBodyPartIds.contains(bp.id),
                       onSelected: (selected) {
                         setState(() {
-                          _selectedBodyPartId = selected ? bp.id : null;
-                          _selectedExerciseId = null;
+                          if (selected) {
+                            _selectedBodyPartIds.add(bp.id);
+                          } else {
+                            _selectedBodyPartIds.remove(bp.id);
+                            // Also remove exercises from this body part
+                            _selectedExerciseIds.removeWhere((exerciseId) {
+                              final exerciseList = exercisesAsync.value;
+                              if (exerciseList == null) return false;
+                              final exercise = exerciseList.firstWhere(
+                                (e) => e.id == exerciseId,
+                                orElse: () => Exercise(
+                                  id: '',
+                                  name: '',
+                                  bodyPartId: '',
+                                  createdAt: DateTime.now(),
+                                ),
+                              );
+                              return exercise.bodyPartId == bp.id;
+                            });
+                          }
                         });
                       },
                     )),
@@ -87,14 +122,32 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
 
           const SizedBox(height: 16),
 
-          // Exercise Selection
-          if (_selectedBodyPartId != null) ...[
-            Text(widget.l10n.selectExercise, style: Theme.of(context).textTheme.titleMedium),
+          // Exercise Selection (Multi-select, filtered by selected body parts)
+          if (_selectedBodyPartIds.isNotEmpty) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(widget.l10n.selectExercise, style: Theme.of(context).textTheme.titleMedium),
+                if (_selectedExerciseIds.isNotEmpty)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedExerciseIds.clear();
+                      });
+                    },
+                    child: const Text('Clear'),
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: exercisesAsync.when(
                 data: (exercises) {
-                  final filtered = exercises.where((e) => e.bodyPartId == _selectedBodyPartId).toList();
+                  // Filter exercises by selected body parts
+                  final filtered = exercises
+                      .where((e) => _selectedBodyPartIds.contains(e.bodyPartId))
+                      .toList();
+                  
                   if (filtered.isEmpty) {
                     return Center(
                       child: Column(
@@ -111,6 +164,7 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                       ),
                     );
                   }
+                  
                   return ListView.builder(
                     controller: widget.scrollController,
                     itemCount: filtered.length + 1,
@@ -123,12 +177,16 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                         );
                       }
                       final exercise = filtered[index];
-                      return ListTile(
+                      return CheckboxListTile(
                         title: Text(exercise.name),
-                        selected: _selectedExerciseId == exercise.id,
-                        onTap: () {
+                        value: _selectedExerciseIds.contains(exercise.id),
+                        onChanged: (selected) {
                           setState(() {
-                            _selectedExerciseId = exercise.id;
+                            if (selected == true) {
+                              _selectedExerciseIds.add(exercise.id);
+                            } else {
+                              _selectedExerciseIds.remove(exercise.id);
+                            }
                           });
                         },
                       );
@@ -141,31 +199,111 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
             ),
           ],
 
-          // Add Button
           const SizedBox(height: 16),
+
+          // Save Button - allow save with just body parts selected
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: _selectedExerciseId != null
-                  ? () async {
-                      final exercise = exercisesAsync.value?.firstWhere(
-                        (e) => e.id == _selectedExerciseId,
-                      );
-                      if (exercise != null) {
-                        await ref.read(workoutSessionProvider.notifier).addExercise(exercise);
-                        ref.invalidate(sessionsProvider);  // Refresh sessions list
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                        }
-                      }
-                    }
+              onPressed: _canSave()
+                  ? () => _saveExercises(context, exercisesAsync)
                   : null,
-              child: Text(widget.l10n.addExercise),
+              child: Text(widget.l10n.save),
             ),
           ),
         ],
       ),
     );
+  }
+
+  bool _canSave() {
+    // Allow saving if we have at least one body part selected
+    return _selectedBodyPartIds.isNotEmpty;
+  }
+
+  void _saveExercises(BuildContext context, AsyncValue<List<Exercise>> exercisesAsync) async {
+    final sessionState = ref.read(workoutSessionProvider);
+    final exercises = exercisesAsync.value;
+    
+    if (exercises == null) return;
+
+    int addedCount = 0;
+    int duplicateCount = 0;
+
+    // If exercises are selected, add them
+    if (_selectedExerciseIds.isNotEmpty) {
+      for (final exerciseId in _selectedExerciseIds) {
+        final exercise = exercises.firstWhere(
+          (e) => e.id == exerciseId,
+          orElse: () => Exercise(
+            id: '',
+            name: '',
+            bodyPartId: '',
+            createdAt: DateTime.now(),
+          ),
+        );
+        
+        if (exercise.id.isEmpty) continue;
+
+        // Check if exercise already exists in session
+        final isDuplicate = sessionState.exercises.any(
+          (e) => e.exercise.id == exercise.id,
+        );
+        
+        if (isDuplicate) {
+          duplicateCount++;
+          continue;
+        }
+
+        await ref.read(workoutSessionProvider.notifier).addExercise(exercise);
+        addedCount++;
+      }
+    } else {
+      // No exercises selected - just body parts
+      // Find all exercises for selected body parts and add them
+      for (final bodyPartId in _selectedBodyPartIds) {
+        final bodyPartExercises = exercises
+            .where((e) => e.bodyPartId == bodyPartId)
+            .toList();
+        
+        for (final exercise in bodyPartExercises) {
+          // Check if exercise already exists in session
+          final isDuplicate = sessionState.exercises.any(
+            (e) => e.exercise.id == exercise.id,
+          );
+          
+          if (isDuplicate) {
+            duplicateCount++;
+            continue;
+          }
+
+          await ref.read(workoutSessionProvider.notifier).addExercise(exercise);
+          addedCount++;
+        }
+      }
+    }
+
+    ref.invalidate(sessionsProvider);
+
+    if (context.mounted) {
+      // Show feedback
+      if (duplicateCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Skipped $duplicateCount duplicate(s), added $addedCount exercise(s)'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else if (addedCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added $addedCount exercise(s)'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      Navigator.pop(context);
+    }
   }
 
   void _showAddBodyPartDialog(BuildContext context) {
@@ -208,7 +346,7 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
   }
 
   void _showAddExerciseDialog(BuildContext context) {
-    if (_selectedBodyPartId == null) return;
+    if (_selectedBodyPartIds.isEmpty) return;
 
     final nameController = TextEditingController();
 
@@ -232,12 +370,15 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
                 final db = ref.read(databaseProvider);
-                await db.insertExercise(ExercisesCompanion.insert(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  name: nameController.text,
-                  bodyPartId: _selectedBodyPartId!,
-                  createdAt: DateTime.now().toUtc(),
-                ));
+                // Add to all selected body parts
+                for (final bodyPartId in _selectedBodyPartIds) {
+                  await db.insertExercise(ExercisesCompanion.insert(
+                    id: DateTime.now().millisecondsSinceEpoch.toString() + bodyPartId,
+                    name: nameController.text,
+                    bodyPartId: bodyPartId,
+                    createdAt: DateTime.now().toUtc(),
+                  ));
+                }
                 ref.invalidate(exercisesProvider);
                 if (context.mounted) Navigator.pop(context);
               }

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../data/database/database.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
+import 'muscle_group_helper.dart';
 
 // ============ Exercise Card ============
 
@@ -17,6 +19,29 @@ class ExerciseCard extends ConsumerWidget {
     required this.exerciseInSession,
     required this.exerciseIndex,
   });
+
+  // Build colored chip for body part display (matching Plan page style)
+  Widget _buildMuscleChip(String bodyPartName) {
+    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
+    final color = AppTheme.getMuscleColor(muscleGroup);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.5), width: 1.5),
+      ),
+      child: Text(
+        bodyPartName,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,15 +61,9 @@ class ExerciseCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Body Part (e.g., Chest)
+                      // Body Part with colored border (like Plan page)
                       if (exerciseInSession.bodyPart != null)
-                        Text(
-                          exerciseInSession.bodyPart!.name,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
+                        _buildMuscleChip(exerciseInSession.bodyPart!.name),
                       // Exercise Name (e.g., Benchpress)
                       Text(
                         exerciseInSession.exercise.name,
@@ -200,13 +219,15 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
   @override
   Widget build(BuildContext context) {
     // Watch providers directly so they update automatically when new data is added
-    final bodyPartsAsync = ref.watch(bodyPartsProvider);
     final exercisesAsync = ref.watch(exercisesProvider);
 
+    // If we have existing exercise from the session, use it directly
+    final hasExistingExercise = widget.existingExercise != null;
+
     return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.5,
-      maxChildSize: 0.9,
+      initialChildSize: 0.5,
+      minChildSize: 0.3,
+      maxChildSize: 0.7,
       expand: false,
       builder: (context, scrollController) {
         return Container(
@@ -226,7 +247,7 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Title
               Text(
                 widget.l10n.addSets,
@@ -234,68 +255,30 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Body Part Selection
-              Text(widget.l10n.selectBodyPart, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              bodyPartsAsync.when(
-                data: (bodyParts) => Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: bodyParts.map((bp) => ChoiceChip(
-                    label: Text(bp.name),
-                    selected: _selectedBodyPartId == bp.id,
-                    onSelected: (selected) {
-                      setState(() {
-                        _selectedBodyPartId = selected ? bp.id : null;
-                        // Clear exercise selection when body part changes
-                        if (!selected) {
-                          _selectedExerciseId = null;
-                        }
-                      });
-                    },
-                  )).toList(),
-                ),
-                loading: () => const CircularProgressIndicator(),
-                error: (e, s) => Text('Error: $e'),
-              ),
-              const SizedBox(height: 16),
-
-              // Exercise Selection
-              if (_selectedBodyPartId != null) ...[
+              // Exercise Selection (only show if no existing exercise)
+              if (!hasExistingExercise) ...[
                 Text(widget.l10n.selectExercise, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Expanded(
                   child: exercisesAsync.when(
                     data: (exercises) {
-                      final filtered = exercises.where((e) => e.bodyPartId == _selectedBodyPartId).toList();
-                      if (filtered.isEmpty) {
+                      if (exercises.isEmpty) {
                         return Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(widget.l10n.noData),
                               const SizedBox(height: 8),
-                              ElevatedButton.icon(
-                                onPressed: () => _showAddExerciseDialog(context),
-                                icon: const Icon(Icons.add),
-                                label: Text(widget.l10n.addExerciseName),
-                              ),
+                              Text(widget.l10n.addExercise),
                             ],
                           ),
                         );
                       }
                       return ListView.builder(
                         controller: scrollController,
-                        itemCount: filtered.length + 1,
+                        itemCount: exercises.length,
                         itemBuilder: (context, index) {
-                          if (index == filtered.length) {
-                            return ListTile(
-                              leading: const Icon(Icons.add),
-                              title: Text(widget.l10n.addExerciseName),
-                              onTap: () => _showAddExerciseDialog(context),
-                            );
-                          }
-                          final exercise = filtered[index];
+                          final exercise = exercises[index];
                           return ListTile(
                             title: Text(exercise.name),
                             selected: _selectedExerciseId == exercise.id,
@@ -312,10 +295,35 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
                     error: (e, s) => Text('Error: $e'),
                   ),
                 ),
+              ] else ...[
+                // Display existing exercise info
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.fitness_center,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.existingExercise!.name,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
 
-              // Weight and Reps Input
               const SizedBox(height: 16),
+
+              // Weight and Reps Input
               Row(
                 children: [
                   Expanded(
@@ -342,7 +350,7 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Save Button
+              // Save Button - allow save with just exercise selected
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
@@ -359,10 +367,8 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
 
   bool _canSave() {
     // Allow saving if we have an exercise (either existing or selected)
-    // and valid weight and reps
-    final weight = double.tryParse(_weightController.text) ?? 0;
-    final reps = int.tryParse(_repsController.text) ?? 0;
-    return _selectedExerciseId != null && weight > 0 && reps > 0;
+    // Weight and reps are optional - can be 0
+    return _selectedExerciseId != null || widget.existingExercise != null;
   }
 
   void _saveSet(BuildContext context) async {

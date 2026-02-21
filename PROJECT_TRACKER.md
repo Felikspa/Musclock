@@ -1,7 +1,7 @@
 # Muscle Clock 项目档案
 
 > **最后更新**: 2026-02-21
-> **版本**: v1.2.0 (Refactored)
+> **版本**: v1.2.2 (Feature)
 > **状态**: 维护与优化阶段
 
 ## 1. 项目概览 (Overview)
@@ -210,6 +210,7 @@ abstract class SyncService {
 
 | 版本 | 日期 | 类型 | 说明 |
 |------|------|------|------|
+| **v1.2.2** | 2026-02-21 | **Feature** | **Today页交互优化**<br>- **训练部位显示**: ExerciseCard中训练部位改用彩色线框样式显示，与Plan页一致。<br>- **多选支持**: AddExerciseSheet支持多选bodyPart和exercise，可一次性添加多个训练项目。<br>- **简化保存逻辑**: AddExerciseSheet只需选中部位即可保存，不再强制选择动作；AddSetSheet只需选中动作即可保存，不再强制填写重量和组数。<br>- **重复检测**: 添加同一session重复动作检测，跳过重复项目并提示用户。<br>- **AddSetSheet精简**: 移除AddSetSheet中的部位选择栏，简化界面。 |
 | **v1.2.1** | 2026-02-21 | **Performance** | **性能优化**<br>- **N+1 查询修复**: 在 `database.dart` 添加 JOIN 聚合查询方法，重构 `exercise_records_list.dart` 和 `day_detail_card.dart` 使用批量查询，查询次数从 32+ 次降至 2-3 次。<br>- **日历构建优化**: 在 `providers.dart` 添加 `sessionsByDateProvider` 索引 Provider，将日历查找复杂度从 O(Days × Sessions) 降为 O(1)。<br>- **依赖清理**: 移除未使用的 `shared_preferences` 依赖，减小包体积。 |
 | **v1.2.0** | 2026-02-21 | **Refactoring** | **全架构重构与代码优化**<br>- **架构分层 (Phase 1)**: 实现 Plan/Session Repository 模式，UI层彻底解耦数据库。<br>- **大文件拆分 (Phase 2)**: 重构 `plan_page` (-82%), `calendar_page` (-72%), `today_page` (-92%)，提取了 `plan_selector`, `day_detail_card`, `active_workout_view` 等10+个独立组件。<br>- **代码复用 (Phase 3/4)**: 封装 `entity_mixins.dart` (JSON序列化), `AsyncValueBuilder` (Provider简化), `AppThemeConfig` (主题配置)。<br>- **清理**: 删除冗余代码，合并 Export/Backup 服务，移除死代码约 400 行。 |
 | **v1.1.0** | 2026-02-21 | **Feature** | **核心功能增强与体验优化**<br>- **数据**: 新增 Glutes (臀) / Abs (腹) 部位及其中文支持，内置预设经典动作。<br>- **Today页面**: 优化卡片视觉（层级式布局，主次分明）；简化交互流程（New Session 直接添加动作，自动保存，一键完成）；支持点击条目查看/编辑详情。<br>- **Calendar页面**: 统一卡片视觉风格；支持点击日期展开查看及编辑历史记录；优化热力图逻辑。<br>- **Plan页面**: 优化自定义计划创建流程，新增可视化设置弹窗（支持颜色标记部位）。<br>- **Analysis**: 恢复时间显示精确度提升至小时 (Days + Hours)。 |
