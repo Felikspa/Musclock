@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/database/database.dart';
 import '../../domain/usecases/calculate_rest_days.dart';
 import '../../domain/usecases/calculate_frequency.dart';
-import '../../domain/usecases/calculate_volume.dart';
+// import '../../domain/usecases/calculate_volume.dart'; // Not currently used
 import '../../data/services/export_service.dart';
 import '../../data/services/backup_service.dart';
 
@@ -23,9 +23,11 @@ final calculateFrequencyProvider = Provider<CalculateFrequencyUseCase>((ref) {
   return CalculateFrequencyUseCase(ref.watch(databaseProvider));
 });
 
-final calculateVolumeProvider = Provider<CalculateVolumeUseCase>((ref) {
-  return CalculateVolumeUseCase(ref.watch(databaseProvider));
-});
+// Note: CalculateVolumeUseCase is defined in calculate_volume.dart
+// but not currently used by any page. Uncomment below if needed:
+// final calculateVolumeProvider = Provider<CalculateVolumeUseCase>((ref) {
+//   return CalculateVolumeUseCase(ref.watch(databaseProvider));
+// });
 
 // Service Providers
 final exportServiceProvider = Provider<ExportService>((ref) {

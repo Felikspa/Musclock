@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../data/database/database.dart';
+import 'export_service.dart';
 
 class BackupService {
   final AppDatabase _db;
@@ -14,7 +15,7 @@ class BackupService {
 
   /// 备份所有数据
   Future<File> createBackup() async {
-    final exportService = _ExportServiceHelper(_db);
+    final exportService = ExportService(_db);
     final jsonData = await exportService.exportToJson();
     
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
@@ -133,89 +134,5 @@ class BackupService {
   /// 分享备份文件
   Future<void> shareBackup(File backupFile) async {
     await Share.shareXFiles([XFile(backupFile.path)]);
-  }
-}
-
-// Helper class to access private export method
-class _ExportServiceHelper {
-  final AppDatabase _db;
-  _ExportServiceHelper(this._db);
-  
-  Future<String> exportToJson() async {
-    final bodyParts = await _db.getAllBodyParts();
-    final exercises = await _db.getAllExercises();
-    final sessions = await _db.getAllSessions();
-    final plans = await _db.getAllPlans();
-
-    final List<Map<String, dynamic>> exerciseRecords = [];
-    final List<Map<String, dynamic>> setRecords = [];
-    final List<Map<String, dynamic>> planItems = [];
-
-    for (final session in sessions) {
-      final records = await _db.getRecordsBySession(session.id);
-      for (final record in records) {
-        exerciseRecords.add({
-          'id': record.id,
-          'sessionId': record.sessionId,
-          'exerciseId': record.exerciseId,
-        });
-
-        final sets = await _db.getSetsByExerciseRecord(record.id);
-        for (final set in sets) {
-          setRecords.add({
-            'id': set.id,
-            'exerciseRecordId': set.exerciseRecordId,
-            'weight': set.weight,
-            'reps': set.reps,
-            'orderIndex': set.orderIndex,
-          });
-        }
-      }
-    }
-
-    for (final plan in plans) {
-      final items = await _db.getPlanItemsByPlan(plan.id);
-      for (final item in items) {
-        planItems.add({
-          'id': item.id,
-          'planId': item.planId,
-          'dayIndex': item.dayIndex,
-          'bodyPartIds': item.bodyPartIds,
-        });
-      }
-    }
-
-    final data = {
-      'version': '1.0',
-      'exportedAt': DateTime.now().toUtc().toIso8601String(),
-      'bodyParts': bodyParts.map((bp) => {
-        'id': bp.id,
-        'name': bp.name,
-        'createdAt': bp.createdAt.toIso8601String(),
-        'isDeleted': bp.isDeleted,
-      }).toList(),
-      'exercises': exercises.map((e) => {
-        'id': e.id,
-        'name': e.name,
-        'bodyPartId': e.bodyPartId,
-        'createdAt': e.createdAt.toIso8601String(),
-      }).toList(),
-      'workoutSessions': sessions.map((s) => {
-        'id': s.id,
-        'startTime': s.startTime.toIso8601String(),
-        'createdAt': s.createdAt.toIso8601String(),
-      }).toList(),
-      'exerciseRecords': exerciseRecords,
-      'setRecords': setRecords,
-      'trainingPlans': plans.map((p) => {
-        'id': p.id,
-        'name': p.name,
-        'cycleLengthDays': p.cycleLengthDays,
-        'createdAt': p.createdAt.toIso8601String(),
-      }).toList(),
-      'planItems': planItems,
-    };
-
-    return const JsonEncoder.withIndent('  ').convert(data);
   }
 }

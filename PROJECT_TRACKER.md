@@ -354,6 +354,21 @@ abstract class SyncService {
 | | | - 点击任意Day可快速设置训练部位或休息日 |
 | | | - 训练部位以彩色框显示，休息以灰色框显示 |
 | | | - 完成后点击Done自动选中该新建计划 |
+| Code Optimization | 2026-02-21 | 代码简化与去冗余 |
+| | | - 抽取_getMuscleGroupByName为共享工具函数 (muscle_group_helper.dart) |
+| | | - 合并ExportService和BackupService的重复代码 (-80行) |
+| | | - 删除未使用的CalculateVolumeUseCase provider |
+| | | - 为预留的SyncService添加注释说明 |
+| | | - 消除跨文件重复代码约95行 |
+| | | - 创建Entity基类 (base_entity.dart) 供未来使用 |
+| | | - 创建Theme配置辅助类 (app_theme_config.dart) 供未来使用 |
+| Code Optimization | 2026-02-21 | Theme代码重构 |
+| | | - 整合AppThemeConfig到AppTheme，减少约180行重复代码 |
+| | | - AppTheme现在使用AppThemeConfig的共享方法生成主题数据 |
+| | | - 代码更简洁，主题配置统一管理 |
+| Bugfix | 2026-02-21 | 修复Theme重构导致的编译错误 |
+| | | - AppTheme保留静态常量作为AppThemeConfig的便捷访问器 |
+| | | - 确保向后兼容，不影响其他页面使用AppTheme常量 |
 
 ---
 

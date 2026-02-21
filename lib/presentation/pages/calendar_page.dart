@@ -4,11 +4,11 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/enums/muscle_enum.dart';
 import '../../data/database/database.dart';
 import '../../domain/entities/exercise_record_with_session.dart';
 import '../providers/providers.dart';
 import '../widgets/training_details_dialog.dart';
+import '../widgets/muscle_group_helper.dart';
 
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key});
@@ -460,27 +460,6 @@ class _ExerciseRecordCard extends StatelessWidget {
     required this.l10n,
   });
 
-  /// Map body part name to MuscleGroup for color display
-  MuscleGroup _getMuscleGroupByName(String name) {
-    final lowerName = name.toLowerCase();
-    if (lowerName.contains('chest') || lowerName.contains('胸')) {
-      return MuscleGroup.chest;
-    } else if (lowerName.contains('back') || lowerName.contains('背')) {
-      return MuscleGroup.back;
-    } else if (lowerName.contains('shoulder') || lowerName.contains('肩')) {
-      return MuscleGroup.shoulders;
-    } else if (lowerName.contains('leg') || lowerName.contains('腿')) {
-      return MuscleGroup.legs;
-    } else if (lowerName.contains('arm') || lowerName.contains('臂')) {
-      return MuscleGroup.arms;
-    } else if (lowerName.contains('glute') || lowerName.contains('臀')) {
-      return MuscleGroup.glutes;
-    } else if (lowerName.contains('abs') || lowerName.contains('腹')) {
-      return MuscleGroup.abs;
-    }
-    return MuscleGroup.rest;
-  }
-
   @override
   Widget build(BuildContext context) {
     final timeFormat = DateFormat('HH:mm');
@@ -489,7 +468,7 @@ class _ExerciseRecordCard extends StatelessWidget {
     final exerciseName = exercise.exercise.name;
 
     // Get muscle color
-    final muscleGroup = _getMuscleGroupByName(bodyPartName);
+    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
     final muscleColor = AppTheme.getMuscleColor(muscleGroup);
 
     return Container(

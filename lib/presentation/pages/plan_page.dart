@@ -6,6 +6,7 @@ import '../../core/enums/muscle_enum.dart';
 import '../../core/constants/muscle_groups.dart';
 import '../../data/database/database.dart';
 import '../providers/providers.dart';
+import '../widgets/muscle_group_helper.dart';
 
 // State provider for selected plan
 final selectedPlanProvider = StateProvider<String>((ref) => 'PPL');
@@ -655,27 +656,6 @@ class _CustomPlanDayItem extends ConsumerWidget {
     required this.l10n,
   });
 
-  /// Map body part name to MuscleGroup for color display
-  MuscleGroup _getMuscleGroupByName(String name) {
-    final lowerName = name.toLowerCase();
-    if (lowerName.contains('chest') || lowerName.contains('胸')) {
-      return MuscleGroup.chest;
-    } else if (lowerName.contains('back') || lowerName.contains('背')) {
-      return MuscleGroup.back;
-    } else if (lowerName.contains('shoulder') || lowerName.contains('肩')) {
-      return MuscleGroup.shoulders;
-    } else if (lowerName.contains('leg') || lowerName.contains('腿')) {
-      return MuscleGroup.legs;
-    } else if (lowerName.contains('arm') || lowerName.contains('臂')) {
-      return MuscleGroup.arms;
-    } else if (lowerName.contains('glute') || lowerName.contains('臀')) {
-      return MuscleGroup.glutes;
-    } else if (lowerName.contains('abs') || lowerName.contains('腹')) {
-      return MuscleGroup.abs;
-    }
-    return MuscleGroup.rest;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bodyPartIds = planItem.bodyPartIds.split(',').where((s) => s.isNotEmpty).toList();
@@ -717,7 +697,7 @@ class _CustomPlanDayItem extends ConsumerWidget {
                   spacing: 8,
                   children: names.map((name) {
                     // Map body part name to MuscleGroup for color
-                    final muscleGroup = _getMuscleGroupByName(name);
+                    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(name);
                     final color = AppTheme.getMuscleColor(muscleGroup);
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -906,7 +886,7 @@ class _PlanSetupDialogState extends ConsumerState<_PlanSetupDialog> {
                       spacing: 8,
                       runSpacing: 8,
                       children: bodyParts.map((bp) {
-                        final muscleGroup = _getMuscleGroupByName(bp.name);
+                        final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
                         final color = AppTheme.getMuscleColor(muscleGroup);
                         final isSelected = selectedBodyPartIds.contains(bp.id);
 
@@ -965,26 +945,6 @@ class _PlanSetupDialogState extends ConsumerState<_PlanSetupDialog> {
         ),
       ),
     );
-  }
-
-  MuscleGroup _getMuscleGroupByName(String name) {
-    final lowerName = name.toLowerCase();
-    if (lowerName.contains('chest') || lowerName.contains('胸')) {
-      return MuscleGroup.chest;
-    } else if (lowerName.contains('back') || lowerName.contains('背')) {
-      return MuscleGroup.back;
-    } else if (lowerName.contains('shoulder') || lowerName.contains('肩')) {
-      return MuscleGroup.shoulders;
-    } else if (lowerName.contains('leg') || lowerName.contains('腿')) {
-      return MuscleGroup.legs;
-    } else if (lowerName.contains('arm') || lowerName.contains('臂')) {
-      return MuscleGroup.arms;
-    } else if (lowerName.contains('glute') || lowerName.contains('臀')) {
-      return MuscleGroup.glutes;
-    } else if (lowerName.contains('abs') || lowerName.contains('腹')) {
-      return MuscleGroup.abs;
-    }
-    return MuscleGroup.rest;
   }
 
   @override
@@ -1046,7 +1006,6 @@ class _PlanSetupDialogState extends ConsumerState<_PlanSetupDialog> {
                           l10n: widget.l10n,
                           bodyPartsAsync: ref.watch(bodyPartsProvider),
                           onTap: () => _showDayEditDialog(index),
-                          getMuscleGroupByName: _getMuscleGroupByName,
                         );
                       },
                     ),
@@ -1090,7 +1049,6 @@ class _DayRow extends StatelessWidget {
   final AppLocalizations l10n;
   final AsyncValue<List<BodyPart>> bodyPartsAsync;
   final VoidCallback onTap;
-  final MuscleGroup Function(String) getMuscleGroupByName;
 
   const _DayRow({
     required this.dayIndex,
@@ -1099,7 +1057,6 @@ class _DayRow extends StatelessWidget {
     required this.l10n,
     required this.bodyPartsAsync,
     required this.onTap,
-    required this.getMuscleGroupByName,
   });
 
   @override
@@ -1178,7 +1135,7 @@ class _DayRow extends StatelessWidget {
                           spacing: 6,
                           runSpacing: 6,
                           children: names.map((name) {
-                            final muscleGroup = getMuscleGroupByName(name);
+                            final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(name);
                             final color = AppTheme.getMuscleColor(muscleGroup);
                             return Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

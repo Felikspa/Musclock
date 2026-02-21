@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/enums/muscle_enum.dart';
 import '../../data/database/database.dart';
 import '../../domain/entities/exercise_record_with_session.dart';
 import '../providers/providers.dart';
@@ -625,32 +624,8 @@ class _ExerciseItemWidget extends StatelessWidget {
     this.onTap,
   });
 
-  /// Map body part name to MuscleGroup for color display
-  MuscleGroup _getMuscleGroupByName(String name) {
-    final lowerName = name.toLowerCase();
-    if (lowerName.contains('chest') || lowerName.contains('胸')) {
-      return MuscleGroup.chest;
-    } else if (lowerName.contains('back') || lowerName.contains('背')) {
-      return MuscleGroup.back;
-    } else if (lowerName.contains('shoulder') || lowerName.contains('肩')) {
-      return MuscleGroup.shoulders;
-    } else if (lowerName.contains('leg') || lowerName.contains('腿')) {
-      return MuscleGroup.legs;
-    } else if (lowerName.contains('arm') || lowerName.contains('臂')) {
-      return MuscleGroup.arms;
-    } else if (lowerName.contains('glute') || lowerName.contains('臀')) {
-      return MuscleGroup.glutes;
-    } else if (lowerName.contains('abs') || lowerName.contains('腹')) {
-      return MuscleGroup.abs;
-    }
-    return MuscleGroup.rest;
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Get muscle color
-    final muscleGroup = _getMuscleGroupByName(exercise.bodyPart);
-
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),

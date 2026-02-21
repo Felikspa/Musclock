@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:drift/drift.dart' show Value;
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/enums/muscle_enum.dart';
+import 'muscle_group_helper.dart';
 import '../../data/database/database.dart';
 import '../../domain/entities/exercise_record_with_session.dart';
 import '../providers/providers.dart';
@@ -52,27 +52,6 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     super.dispose();
   }
 
-  /// Map body part name to MuscleGroup for color display
-  MuscleGroup _getMuscleGroupByName(String name) {
-    final lowerName = name.toLowerCase();
-    if (lowerName.contains('chest') || lowerName.contains('胸')) {
-      return MuscleGroup.chest;
-    } else if (lowerName.contains('back') || lowerName.contains('背')) {
-      return MuscleGroup.back;
-    } else if (lowerName.contains('shoulder') || lowerName.contains('肩')) {
-      return MuscleGroup.shoulders;
-    } else if (lowerName.contains('leg') || lowerName.contains('腿')) {
-      return MuscleGroup.legs;
-    } else if (lowerName.contains('arm') || lowerName.contains('臂')) {
-      return MuscleGroup.arms;
-    } else if (lowerName.contains('glute') || lowerName.contains('臀')) {
-      return MuscleGroup.glutes;
-    } else if (lowerName.contains('abs') || lowerName.contains('腹')) {
-      return MuscleGroup.abs;
-    }
-    return MuscleGroup.rest;
-  }
-
   // ===== Helper methods for editing =====
 
   /// Build body part chip (non-edit mode)
@@ -112,7 +91,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
           data: (bodyParts) => Wrap(
             spacing: 6, runSpacing: 4,
             children: bodyParts.map((bp) {
-              final bpMuscleGroup = _getMuscleGroupByName(bp.name);
+              final bpMuscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
               final bpColor = AppTheme.getMuscleColor(bpMuscleGroup);
               final isSelected = _selectedBodyPartId == bp.id;
               return ChoiceChip(
@@ -188,7 +167,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     final dateFormat = DateFormat('yyyy-MM-dd');
 
     // Get muscle color
-    final muscleGroup = _getMuscleGroupByName(bodyPartName);
+    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
     final muscleColor = AppTheme.getMuscleColor(muscleGroup);
 
     return Dialog(
