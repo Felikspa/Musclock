@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/database/database.dart';
 import '../../domain/usecases/calculate_rest_days.dart';
 import '../../domain/usecases/calculate_frequency.dart';
-// import '../../domain/usecases/calculate_volume.dart'; // Not currently used
 import '../../data/services/export_service.dart';
 import '../../data/services/backup_service.dart';
 import '../../domain/repositories/plan_repository.dart';
 import '../../domain/repositories/session_repository.dart';
+import '../../data/cloud/minapp_client.dart';
+import '../../data/cloud/auth_service.dart';
+import '../../data/cloud/sync_service_impl.dart';
+import '../../data/cloud/providers/auth_state.dart';
+import '../../data/cloud/providers/sync_state.dart';
 
 // Database Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -116,3 +120,49 @@ final localeProvider = StateProvider<String>((ref) => 'en');
 
 // Plan Page State
 final selectedPlanProvider = StateProvider<String>((ref) => 'PPL');
+
+// ============ Cloud Sync Providers ============
+
+// Note: These providers require configuration with actual ClientID and Secret
+// They are placeholders that need to be initialized with real credentials
+
+/// Cloud client configuration
+/// Replace with your actual MinApp credentials
+class CloudConfig {
+  // TODO: 替换为您的知晓云应用 ClientID
+  static const String clientId = 'ee7e25c040a9fe6c0f34';
+  
+  // TODO: 替换为您的知晓云应用 ClientSecret
+  static const String clientSecret = 'd0a626f8fb98f568476ef333d95a1cb788893961';
+}
+
+/// MinApp API Client Provider
+final minAppClientProvider = Provider<MinAppClient>((ref) {
+  return MinAppClient(
+    clientId: CloudConfig.clientId,
+    clientSecret: CloudConfig.clientSecret,
+  );
+});
+
+/// Auth Service Provider
+final authServiceProvider = Provider<AuthService>((ref) {
+  return AuthService(ref.watch(minAppClientProvider));
+});
+
+/// Auth State Provider
+final authStateProvider = StateNotifierProvider<AuthStateNotifier, AuthState>((ref) {
+  return AuthStateNotifier(ref.watch(authServiceProvider));
+});
+
+/// Cloud Sync Service Provider
+final cloudSyncServiceProvider = Provider<CloudSyncService>((ref) {
+  return CloudSyncService(
+    ref.watch(minAppClientProvider),
+    ref.watch(databaseProvider),
+  );
+});
+
+/// Sync State Provider
+final syncStateProvider = StateNotifierProvider<SyncStateNotifier, SyncState>((ref) {
+  return SyncStateNotifier(ref.watch(cloudSyncServiceProvider));
+});

@@ -30,6 +30,10 @@ dependencies:
   # Icons
   cupertino_icons: ^1.0.8
   
+  # Cloud Sync (BaaS)
+  http: ^1.2.0
+  flutter_secure_storage: ^9.0.0
+  
   # Calendar
   table_calendar: ^3.1.0
 

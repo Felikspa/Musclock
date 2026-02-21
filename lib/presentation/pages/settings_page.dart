@@ -91,6 +91,59 @@ class SettingsPage extends ConsumerWidget {
             ],
           ),
 
+          // Cloud Sync (Note: Requires configuration with MinApp credentials)
+          // To enable: Uncomment and configure the providers in providers.dart
+          _SettingsSection(
+            title: l10n.cloudSync,
+            children: [
+              // Placeholder for cloud sync functionality
+              // Uncomment when cloud providers are configured:
+              // Consumer(builder: (context, ref, _) {
+              //   final authState = ref.watch(authStateProvider);
+              //   if (authState.status == AuthStatus.authenticated) {
+              //     return Column(children: [
+              //       ListTile(
+              //         leading: const Icon(Icons.cloud_done),
+              //         title: Text(l10n.loggedInAs),
+              //         subtitle: Text(authState.user?.email ?? ''),
+              //       ),
+              //       ListTile(
+              //         leading: const Icon(Icons.sync),
+              //         title: Text(l10n.syncNow),
+              //         onTap: () => ref.read(syncStateProvider.notifier).syncAll(),
+              //       ),
+              //       ListTile(
+              //         leading: const Icon(Icons.logout),
+              //         title: Text(l10n.logout),
+              //         onTap: () => ref.read(authStateProvider.notifier).logout(),
+              //       ),
+              //     ]);
+              //   }
+              //   return Column(children: [
+              //     ListTile(
+              //       leading: const Icon(Icons.cloud_off),
+              //       title: Text(l10n.notLoggedIn),
+              //     ),
+              //     ListTile(
+              //       leading: const Icon(Icons.login),
+              //       title: Text(l10n.login),
+              //       onTap: () => Navigator.pushNamed(context, '/login'),
+              //     ),
+              //   ]);
+              // }),
+              ListTile(
+                leading: const Icon(Icons.cloud_off),
+                title: Text(l10n.notLoggedIn),
+                subtitle: const Text('Configure MinApp credentials to enable'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.login),
+                title: Text(l10n.login),
+                onTap: () => _showLoginDialog(context),
+              ),
+            ],
+          ),
+
           // About
           _SettingsSection(
             title: l10n.about,
@@ -161,6 +214,35 @@ class SettingsPage extends ConsumerWidget {
         );
       }
     }
+  }
+
+  void _showLoginDialog(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.cloudSync),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'To enable cloud sync, you need to:\n\n'
+              '1. Configure your MinApp ClientID and Secret in providers.dart\n'
+              '2. Create the required data tables in MinApp dashboard\n'
+              '3. Rebuild the app\n\n'
+              'See PROJECT_TRACKER.md for detailed instructions.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.cancel),
+          ),
+        ],
+      ),
+    );
   }
 }
 

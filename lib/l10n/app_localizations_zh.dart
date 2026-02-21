@@ -278,6 +278,69 @@ class AppLocalizationsZh extends AppLocalizations {
   String get version => '版本';
 
   @override
+  String get login => '登录';
+
+  @override
+  String get register => '注册';
+
+  @override
+  String get logout => '退出登录';
+
+  @override
+  String get email => '邮箱';
+
+  @override
+  String get password => '密码';
+
+  @override
+  String get confirmPassword => '确认密码';
+
+  @override
+  String get username => '用户名';
+
+  @override
+  String get dontHaveAccount => '还没有账号？';
+
+  @override
+  String get alreadyHaveAccount => '已有账号？';
+
+  @override
+  String get cloudSync => '云同步';
+
+  @override
+  String get syncNow => '立即同步';
+
+  @override
+  String get lastSynced => '上次同步';
+
+  @override
+  String get syncing => '同步中...';
+
+  @override
+  String get syncSuccess => '同步成功';
+
+  @override
+  String get syncFailed => '同步失败';
+
+  @override
+  String get loginSuccess => '登录成功';
+
+  @override
+  String get loginFailed => '登录失败';
+
+  @override
+  String get registerSuccess => '注册成功';
+
+  @override
+  String get registerFailed => '注册失败';
+
+  @override
+  String get notLoggedIn => '未登录';
+
+  @override
+  String get loggedInAs => '已登录为';
+
+  @override
   String get glutes => '臀';
 
   @override

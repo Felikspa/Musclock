@@ -278,6 +278,69 @@ class AppLocalizationsEn extends AppLocalizations {
   String get version => 'Version';
 
   @override
+  String get login => 'Login';
+
+  @override
+  String get register => 'Register';
+
+  @override
+  String get logout => 'Logout';
+
+  @override
+  String get email => 'Email';
+
+  @override
+  String get password => 'Password';
+
+  @override
+  String get confirmPassword => 'Confirm Password';
+
+  @override
+  String get username => 'Username';
+
+  @override
+  String get dontHaveAccount => 'Don\'t have an account?';
+
+  @override
+  String get alreadyHaveAccount => 'Already have an account?';
+
+  @override
+  String get cloudSync => 'Cloud Sync';
+
+  @override
+  String get syncNow => 'Sync Now';
+
+  @override
+  String get lastSynced => 'Last Synced';
+
+  @override
+  String get syncing => 'Syncing...';
+
+  @override
+  String get syncSuccess => 'Sync completed successfully';
+
+  @override
+  String get syncFailed => 'Sync failed';
+
+  @override
+  String get loginSuccess => 'Login successful';
+
+  @override
+  String get loginFailed => 'Login failed';
+
+  @override
+  String get registerSuccess => 'Registration successful';
+
+  @override
+  String get registerFailed => 'Registration failed';
+
+  @override
+  String get notLoggedIn => 'Not logged in';
+
+  @override
+  String get loggedInAs => 'Logged in as';
+
+  @override
   String get glutes => 'Glutes';
 
   @override

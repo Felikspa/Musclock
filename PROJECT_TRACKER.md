@@ -206,6 +206,45 @@ abstract class SyncService {
 
 ---
 
+## 6.1 知晓云 BaaS 接入 (Cloud Sync - Completed)
+
+基于知晓云 BaaS 平台实现用户认证和云数据同步功能。
+
+### 6.1.1 技术方案
+
+- **接入方式**: REST API (知晓云无官方 Flutter SDK)
+- **认证方式**: Email + Password
+- **同步策略**: 合并策略 (基于时间戳比较，保留最新修改)
+- **多设备支持**: 是
+
+### 6.1.2 已创建的文件
+
+| 文件路径 | 说明 |
+|----------|------|
+| `lib/data/cloud/minapp_client.dart` | 知晓云 REST API 客户端 |
+| `lib/data/cloud/auth_service.dart` | 认证服务 |
+| `lib/data/cloud/sync_service_impl.dart` | 云同步服务实现 |
+| `lib/data/cloud/models/sync_result.dart` | 同步结果模型 |
+| `lib/data/cloud/providers/auth_state.dart` | 认证状态管理 |
+| `lib/data/cloud/providers/sync_state.dart` | 同步状态管理 |
+| `lib/presentation/pages/login_page.dart` | 登录页面 |
+| `lib/presentation/pages/register_page.dart` | 注册页面 |
+
+### 6.1.3 待完成任务
+
+1. **知晓云后台创建数据表** (需手动操作)：
+   - user_profile, body_parts, exercises, workout_sessions
+   - exercise_records, set_records, training_plans, plan_items
+   - sync_metadata
+
+2. **配置凭证** (需手动配置):
+   - 在 `lib/presentation/providers/providers.dart` 中配置 CloudConfig 的 clientId 和 clientSecret
+
+3. **取消 Provider 注释** (需手动配置):
+   - 取消 providers.dart 中云同步相关 Provider 的注释
+
+---
+
 ## 7. 版本历史 (Version History)
 
 | 版本 | 日期 | 类型 | 说明 |
