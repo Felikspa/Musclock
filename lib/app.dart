@@ -5,15 +5,29 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/providers/providers.dart';
 import 'presentation/pages/home_page.dart';
+import 'presentation/pages/login_page.dart';
+import 'presentation/pages/register_page.dart';
 
 // Generate localization
 import 'l10n/app_localizations.dart';
 
-class MuscleClockApp extends ConsumerWidget {
+class MuscleClockApp extends ConsumerStatefulWidget {
   const MuscleClockApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MuscleClockApp> createState() => _MuscleClockAppState();
+}
+
+class _MuscleClockAppState extends ConsumerState<MuscleClockApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize auth state
+    Future.microtask(() => ref.read(authStateProvider.notifier).initialize());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider);
 
@@ -35,6 +49,10 @@ class MuscleClockApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       home: const HomePage(),
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/register': (context) => const RegisterPage(),
+      },
     );
   }
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
-// Note: Uncomment when providers are properly configured
-// import '../providers/providers.dart';
+import '../providers/providers.dart';
+import '../../data/cloud/providers/auth_state.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -31,17 +31,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Note: Uncomment when providers are properly configured
-      // await ref.read(authStateProvider.notifier).login(
-      //   email: _emailController.text.trim(),
-      //   password: _passwordController.text,
-      // );
-
-      // For now, just simulate a successful login
-      await Future.delayed(const Duration(seconds: 1));
+      await ref.read(authStateProvider.notifier).login(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
       
-      if (mounted) {
+      if (!mounted) return;
+
+      final authState = ref.read(authStateProvider);
+      if (authState.status == AuthStatus.authenticated) {
         Navigator.of(context).pop(true);
+      } else if (authState.status == AuthStatus.error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login failed: ${authState.errorMessage}')),
+        );
       }
     } catch (e) {
       if (mounted) {

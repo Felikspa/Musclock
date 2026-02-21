@@ -1,22 +1,21 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:drift/drift.dart' as drift;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../database/database.dart';
-import 'minapp_client.dart';
 import 'models/sync_result.dart';
 
-/// Cloud sync service implementation
-/// Uses merge strategy for data synchronization
+/// Cloud sync service implementation (Supabase)
 class CloudSyncService {
-  final MinAppClient _client;
+  final SupabaseClient _client;
   final AppDatabase _database;
   
-  // Metadata storage key
+  // Metadata storage
   static const String _metadataKey = 'sync_metadata';
   final FlutterSecureStorage _storage;
-  
   SyncMetadata? _lastSyncMetadata;
-  
-  // Table name mapping
+
+  // Table name mapping (Local -> Cloud)
   static const Map<String, String> _tableNameMap = {
     'body_parts': 'body_parts',
     'exercises': 'exercises', 
@@ -32,16 +31,40 @@ class CloudSyncService {
 
   /// Get last sync metadata
   Future<SyncMetadata?> getLastSyncMetadata() async {
-    if (_lastSyncMetadata != null) {
-      return _lastSyncMetadata;
-    }
+    if (_lastSyncMetadata != null) return _lastSyncMetadata;
     
-    final json = await _storage.read(key: _metadataKey);
-    if (json != null) {
+    final jsonStr = await _storage.read(key: _metadataKey);
+    if (jsonStr != null) {
       try {
-        _lastSyncMetadata = SyncMetadata.fromJson(
-          Map<String, dynamic>.from(_parseJson(json)),
-        );
+        // Simple JSON parsing if not using dart:convert
+        // Or better, just store individual fields. 
+        // But let's reuse the existing simple parser logic if needed, 
+        // or just assume it's a valid JSON string if we wrote it with jsonEncode.
+        // The previous code had a custom parser. I'll implement a simple one or use regex.
+        // Actually, let's just use a simple approach: if it fails, return null.
+        // Since I'm rewriting, I'll use a simpler storage format or just try to parse.
+        // Wait, I can't import dart:convert easily if not already there? 
+        // Yes I can. But let's stick to the previous custom parser logic for compatibility 
+        // if existing data is there? No, migration means we can start fresh.
+        // But for safety, I will wrap in try-catch.
+        
+        // Re-implementing a basic parser for the stored format:
+        // {"user_id": "...", "last_sync_time": "..."}
+        if (jsonStr.startsWith('{') && jsonStr.endsWith('}')) {
+             final content = jsonStr.substring(1, jsonStr.length - 1);
+             final Map<String, dynamic> map = {};
+             final pairs = content.split(', ');
+             for (final pair in pairs) {
+               final parts = pair.split(': ');
+               if (parts.length >= 2) {
+                 final key = parts[0].replaceAll('"', '');
+                 // Value might contain : (e.g. time), so join the rest
+                 final value = parts.sublist(1).join(': ').replaceAll('"', '');
+                 map[key] = value == 'null' ? null : value;
+               }
+             }
+             _lastSyncMetadata = SyncMetadata.fromJson(map);
+        }
       } catch (e) {
         debugPrint('Failed to parse sync metadata: $e');
       }
@@ -52,55 +75,39 @@ class CloudSyncService {
   /// Save sync metadata
   Future<void> _saveSyncMetadata(SyncMetadata metadata) async {
     _lastSyncMetadata = metadata;
-    await _storage.write(
-      key: _metadataKey,
-      value: _encodeJson(metadata.toJson()),
-    );
-  }
-
-  Map<String, dynamic> _parseJson(String json) {
-    final result = <String, dynamic>{};
-    final content = json.substring(1, json.length - 1);
-    final pairs = content.split(', ');
-    for (final pair in pairs) {
-      final parts = pair.split(': ');
-      if (parts.length == 2) {
-        final key = parts[0].replaceAll('"', '');
-        final value = parts[1].replaceAll('"', '');
-        result[key] = value == 'null' ? null : value;
-      }
-    }
-    return result;
-  }
-
-  String _encodeJson(Map<String, dynamic> map) {
+    // Simple serialization
+    final map = metadata.toJson();
     final entries = map.entries.map((e) => '"${e.key}": "${e.value}"').join(', ');
-    return '{$entries}';
+    final jsonStr = '{$entries}';
+    
+    await _storage.write(key: _metadataKey, value: jsonStr);
   }
 
   /// Perform full sync
   Future<SyncResult> syncAll() async {
-    if (!_client.isLoggedIn) {
+    final user = _client.auth.currentUser;
+    if (user == null) {
       return SyncResult.failure('User not logged in');
     }
 
     try {
       int uploaded = 0;
       int downloaded = 0;
-      int conflicts = 0;
 
-      // 1. Upload local data
       for (final entry in _tableNameMap.entries) {
-        final result = await _syncTable(entry.key, entry.value);
-        uploaded += result['uploaded'] ?? 0;
-        downloaded += result['downloaded'] ?? 0;
-        conflicts += result['conflicts'] ?? 0;
+        final localTable = entry.key;
+        final cloudTable = entry.value;
+
+        // 1. Upload
+        uploaded += await _uploadTable(localTable, cloudTable, user.id);
+
+        // 2. Download
+        downloaded += await _downloadTable(localTable, cloudTable, user.id);
       }
 
-      // 2. Update sync metadata
-      final userId = await _client.getCurrentUserId();
+      // Update metadata
       await _saveSyncMetadata(SyncMetadata(
-        userId: userId,
+        userId: user.id,
         lastSyncTime: DateTime.now(),
         syncVersion: (_lastSyncMetadata?.syncVersion ?? 0) + 1,
       ));
@@ -108,7 +115,6 @@ class CloudSyncService {
       return SyncResult.success(
         uploadedCount: uploaded,
         downloadedCount: downloaded,
-        conflictsResolved: conflicts,
       );
     } catch (e) {
       debugPrint('Sync error: $e');
@@ -116,89 +122,97 @@ class CloudSyncService {
     }
   }
 
-  /// Sync single table with merge strategy
-  Future<Map<String, int>> _syncTable(String localTable, String cloudTable) async {
-    int uploaded = 0;
-    int downloaded = 0;
-    int conflicts = 0;
+  /// Upload data only
+  Future<SyncResult> uploadData() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return SyncResult.failure('User not logged in');
 
     try {
-      // 1. Get local data
-      final localData = await _getLocalTableData(localTable);
+      int uploaded = 0;
+      for (final entry in _tableNameMap.entries) {
+        uploaded += await _uploadTable(entry.key, entry.value, user.id);
+      }
       
-      // 2. Get cloud data
-      final cloudResult = await _client.queryTable(
-        tableName: cloudTable,
-        where: {'user_id': await _client.getCurrentUserId()},
-      );
-      final cloudData = {for (var r in cloudResult.records) r.id: r};
+      await _saveSyncMetadata(SyncMetadata(
+        userId: user.id,
+        lastSyncTime: DateTime.now(),
+        syncVersion: (_lastSyncMetadata?.syncVersion ?? 0) + 1,
+      ));
 
-      // 3. Merge data
-      for (final local in localData) {
-        final localId = local['id'] as String;
-        final localUpdatedAt = local['updated_at'] != null 
-            ? DateTime.parse(local['updated_at'] as String)
-            : DateTime.parse(local['created_at'] as String);
-
-        if (cloudData.containsKey(localId)) {
-          // Record exists, compare timestamps
-          final cloud = cloudData[localId]!;
-          final cloudUpdatedAt = cloud.updatedAt ?? cloud.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-
-          if (localUpdatedAt.isAfter(cloudUpdatedAt)) {
-            // Local is newer, upload
-            await _client.updateRecord(
-              tableName: cloudTable,
-              recordId: localId,
-              data: _prepareCloudData(local),
-            );
-            uploaded++;
-          } else if (localUpdatedAt.isBefore(cloudUpdatedAt)) {
-            // Cloud is newer, download
-            await _updateLocalTableData(localTable, cloud.data);
-            downloaded++;
-          }
-          // Equal - ignore
-        } else {
-          // Doesn't exist in cloud, upload
-          await _client.createRecord(
-            tableName: cloudTable,
-            data: _prepareCloudData(local),
-          );
-          uploaded++;
-        }
-      }
-
-      // 4. Handle new cloud records (not in local)
-      for (final cloud in cloudData.values) {
-        final cloudId = cloud.id;
-        final hasLocal = localData.any((l) => l['id'] == cloudId);
-        if (!hasLocal) {
-          await _updateLocalTableData(localTable, cloud.data);
-          downloaded++;
-        }
-      }
+      return SyncResult.success(uploadedCount: uploaded);
     } catch (e) {
-      debugPrint('Error syncing table $localTable: $e');
+      return SyncResult.failure(e.toString());
     }
+  }
 
-    return {
-      'uploaded': uploaded,
-      'downloaded': downloaded,
-      'conflicts': conflicts,
-    };
+  /// Download data only
+  Future<SyncResult> downloadData() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return SyncResult.failure('User not logged in');
+
+    try {
+      int downloaded = 0;
+      for (final entry in _tableNameMap.entries) {
+        downloaded += await _downloadTable(entry.key, entry.value, user.id);
+      }
+      
+      await _saveSyncMetadata(SyncMetadata(
+        userId: user.id,
+        lastSyncTime: DateTime.now(),
+        syncVersion: (_lastSyncMetadata?.syncVersion ?? 0) + 1,
+      ));
+
+      return SyncResult.success(downloadedCount: downloaded);
+    } catch (e) {
+      return SyncResult.failure(e.toString());
+    }
+  }
+
+  Future<int> _uploadTable(String localTable, String cloudTable, String userId) async {
+    final localData = await _getLocalTableData(localTable);
+    if (localData.isEmpty) return 0;
+
+    final dataToUpload = localData.map((e) => _prepareCloudData(e, userId)).toList();
+    int count = 0;
+    
+    // Supabase upsert in batches
+    for (var i = 0; i < dataToUpload.length; i += 100) {
+      final batch = dataToUpload.skip(i).take(100).toList();
+      await _client.from(cloudTable).upsert(batch);
+      count += batch.length;
+    }
+    return count;
+  }
+
+  Future<int> _downloadTable(String localTable, String cloudTable, String userId) async {
+    final List<dynamic> cloudRecords = await _client
+        .from(cloudTable)
+        .select()
+        .eq('user_id', userId);
+    
+    int count = 0;
+    for (final record in cloudRecords) {
+      if (record is Map<String, dynamic>) {
+          await _updateLocalTableData(localTable, record);
+          count++;
+      }
+    }
+    return count;
   }
 
   /// Prepare data for cloud upload (add user_id)
-  Map<String, dynamic> _prepareCloudData(Map<String, dynamic> localData) {
+  Map<String, dynamic> _prepareCloudData(Map<String, dynamic> localData, String userId) {
     final data = Map<String, dynamic>.from(localData);
-    data['user_id'] = _client.getCurrentUserId();
-    // Remove local timestamp, use cloud auto-generated
-    data.remove('updated_at');
+    data['user_id'] = userId;
+    
+    // Ensure timestamps are ISO8601
+    if (data['created_at'] is DateTime) {
+      data['created_at'] = (data['created_at'] as DateTime).toIso8601String();
+    }
     return data;
   }
 
-  /// Get local table data
+  /// Get local table data as Map
   Future<List<Map<String, dynamic>>> _getLocalTableData(String tableName) async {
     switch (tableName) {
       case 'body_parts':
@@ -207,7 +221,6 @@ class CloudSyncService {
           'id': p.id,
           'name': p.name,
           'created_at': p.createdAt.toIso8601String(),
-          'updated_at': p.createdAt.toIso8601String(),
           'is_deleted': p.isDeleted,
         }).toList();
       case 'exercises':
@@ -217,7 +230,6 @@ class CloudSyncService {
           'name': e.name,
           'body_part_id': e.bodyPartId,
           'created_at': e.createdAt.toIso8601String(),
-          'updated_at': e.createdAt.toIso8601String(),
         }).toList();
       case 'workout_sessions':
         final sessions = await _database.getAllSessions();
@@ -225,111 +237,129 @@ class CloudSyncService {
           'id': s.id,
           'start_time': s.startTime.toIso8601String(),
           'created_at': s.createdAt.toIso8601String(),
-          'body_part_ids': '',
-          'updated_at': s.createdAt.toIso8601String(),
+          'body_part_ids': s.bodyPartIds,
         }).toList();
+      case 'exercise_records':
+        final records = await (_database.select(_database.exerciseRecords)).get();
+        return records.map((r) => {
+          'id': r.id,
+          'session_id': r.sessionId,
+          'exercise_id': r.exerciseId,
+        }).toList();
+      case 'set_records':
+        final sets = await (_database.select(_database.setRecords)).get();
+        return sets.map((s) => {
+          'id': s.id,
+          'exercise_record_id': s.exerciseRecordId,
+          'weight': s.weight,
+          'reps': s.reps,
+          'order_index': s.orderIndex,
+        }).toList();
+      case 'training_plans':
+        final plans = await _database.getAllPlans();
+        return plans.map((p) => {
+          'id': p.id,
+          'name': p.name,
+          'cycle_length_days': p.cycleLengthDays,
+          'created_at': p.createdAt.toIso8601String(),
+        }).toList();
+      case 'plan_items':
+         final items = await (_database.select(_database.planItems)).get();
+         return items.map((i) => {
+           'id': i.id,
+           'plan_id': i.planId,
+           'day_index': i.dayIndex,
+           'body_part_ids': i.bodyPartIds,
+         }).toList();
       default:
         return [];
     }
   }
 
-  /// Update local table data
+  /// Update local table data from cloud
   Future<void> _updateLocalTableData(String tableName, Map<String, dynamic> cloudData) async {
-    // Implementation depends on table type
-    // Needs coordination with local database layer
-    debugPrint('Updating local table $tableName with cloud data: $cloudData');
-  }
-
-  /// Upload local data only
-  Future<SyncResult> uploadData() async {
-    if (!_client.isLoggedIn) {
-      return SyncResult.failure('User not logged in');
-    }
-
     try {
-      int uploaded = 0;
-
-      for (final entry in _tableNameMap.entries) {
-        final localData = await _getLocalTableData(entry.key);
-        
-        for (final data in localData) {
-          try {
-            await _client.createRecord(
-              tableName: entry.value,
-              data: _prepareCloudData(data),
-            );
-            uploaded++;
-          } catch (e) {
-            // Record may already exist, try update
-            try {
-              await _client.updateRecord(
-                tableName: entry.value,
-                recordId: data['id'] as String,
-                data: _prepareCloudData(data),
-              );
-              uploaded++;
-            } catch (e2) {
-              debugPrint('Failed to sync record ${data['id']}: $e2');
-            }
-          }
-        }
+      switch (tableName) {
+        case 'body_parts':
+          await _database.into(_database.bodyParts).insert(
+            BodyPartsCompanion(
+              id: drift.Value(cloudData['id']),
+              name: drift.Value(cloudData['name']),
+              createdAt: drift.Value(DateTime.parse(cloudData['created_at'])),
+              isDeleted: drift.Value(cloudData['is_deleted'] ?? false),
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+          break;
+        case 'exercises':
+          await _database.into(_database.exercises).insert(
+            ExercisesCompanion(
+              id: drift.Value(cloudData['id']),
+              name: drift.Value(cloudData['name']),
+              bodyPartId: drift.Value(cloudData['body_part_id']),
+              createdAt: drift.Value(DateTime.parse(cloudData['created_at'])),
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+          break;
+        case 'workout_sessions':
+          await _database.into(_database.workoutSessions).insert(
+            WorkoutSessionsCompanion(
+              id: drift.Value(cloudData['id']),
+              startTime: drift.Value(DateTime.parse(cloudData['start_time'])),
+              createdAt: drift.Value(DateTime.parse(cloudData['created_at'])),
+              bodyPartIds: drift.Value(cloudData['body_part_ids'] ?? ''),
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+          break;
+        case 'exercise_records':
+          await _database.into(_database.exerciseRecords).insert(
+            ExerciseRecordsCompanion(
+              id: drift.Value(cloudData['id']),
+              sessionId: drift.Value(cloudData['session_id']),
+              exerciseId: drift.Value(cloudData['exercise_id']),
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+          break;
+        case 'set_records':
+          await _database.into(_database.setRecords).insert(
+            SetRecordsCompanion(
+              id: drift.Value(cloudData['id']),
+              exerciseRecordId: drift.Value(cloudData['exercise_record_id']),
+              weight: drift.Value((cloudData['weight'] as num).toDouble()),
+              reps: drift.Value((cloudData['reps'] as num).toInt()),
+              orderIndex: drift.Value((cloudData['order_index'] as num).toInt()),
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+          break;
+        case 'training_plans':
+          await _database.into(_database.trainingPlans).insert(
+            TrainingPlansCompanion(
+              id: drift.Value(cloudData['id']),
+              name: drift.Value(cloudData['name']),
+              cycleLengthDays: drift.Value((cloudData['cycle_length_days'] as num).toInt()),
+              createdAt: drift.Value(DateTime.parse(cloudData['created_at'])),
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+          break;
+        case 'plan_items':
+          await _database.into(_database.planItems).insert(
+            PlanItemsCompanion(
+              id: drift.Value(cloudData['id']),
+              planId: drift.Value(cloudData['plan_id']),
+              dayIndex: drift.Value((cloudData['day_index'] as num).toInt()),
+              bodyPartIds: drift.Value(cloudData['body_part_ids'] ?? ''),
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+          break;
       }
-
-      // Update sync time
-      final userId = await _client.getCurrentUserId();
-      await _saveSyncMetadata(SyncMetadata(
-        userId: userId,
-        lastSyncTime: DateTime.now(),
-        syncVersion: (_lastSyncMetadata?.syncVersion ?? 0) + 1,
-      ));
-
-      return SyncResult.success(uploadedCount: uploaded);
     } catch (e) {
-      debugPrint('Upload error: $e');
-      return SyncResult.failure(e.toString());
+      debugPrint('Error updating local table $tableName: $e');
     }
-  }
-
-  /// Download cloud data only
-  Future<SyncResult> downloadData() async {
-    if (!_client.isLoggedIn) {
-      return SyncResult.failure('User not logged in');
-    }
-
-    try {
-      int downloaded = 0;
-
-      for (final entry in _tableNameMap.entries) {
-        final result = await _client.queryTable(
-          tableName: entry.value,
-          where: {'user_id': await _client.getCurrentUserId()},
-        );
-
-        for (final record in result.records) {
-          await _updateLocalTableData(entry.key, record.data);
-          downloaded++;
-        }
-      }
-
-      // Update sync time
-      final userId = await _client.getCurrentUserId();
-      await _saveSyncMetadata(SyncMetadata(
-        userId: userId,
-        lastSyncTime: DateTime.now(),
-        syncVersion: (_lastSyncMetadata?.syncVersion ?? 0) + 1,
-      ));
-
-      return SyncResult.success(downloadedCount: downloaded);
-    } catch (e) {
-      debugPrint('Download error: $e');
-      return SyncResult.failure(e.toString());
-    }
-  }
-
-  /// Incremental sync since last sync time
-  Future<SyncResult> syncSince(DateTime? lastSyncTime) async {
-    // Simplified: call full sync
-    // Production needs to track record change timestamps
-    return await syncAll();
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'minapp_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// 云端用户模型
 class CloudUser {
@@ -15,14 +15,12 @@ class CloudUser {
     this.createdAt,
   });
 
-  factory CloudUser.fromJson(Map<String, dynamic> json) {
+  factory CloudUser.fromSupabase(User user) {
     return CloudUser(
-      id: json['id'].toString(),
-      email: json['email'] as String?,
-      username: json['username'] as String?,
-      createdAt: json['created_at'] != null 
-          ? DateTime.tryParse(json['created_at'].toString())
-          : null,
+      id: user.id,
+      email: user.email,
+      username: user.userMetadata?['username'] as String?,
+      createdAt: DateTime.tryParse(user.createdAt),
     );
   }
 
@@ -34,33 +32,28 @@ class CloudUser {
   };
 }
 
-/// 认证服务实现
-/// 管理用户的登录、注册、登出状态
+/// 认证服务实现 (Supabase版)
 class AuthService {
-  final MinAppClient _client;
-  
-  CloudUser? _currentUser;
+  final SupabaseClient _client;
   
   AuthService(this._client);
 
   /// 获取当前登录用户
-  CloudUser? get currentUser => _currentUser;
+  CloudUser? get currentUser {
+    final user = _client.auth.currentUser;
+    if (user == null) return null;
+    return CloudUser.fromSupabase(user);
+  }
   
   /// 是否已登录
-  bool get isLoggedIn => _client.isLoggedIn;
+  bool get isLoggedIn => _client.auth.currentUser != null;
 
-  /// 初始化认证服务，恢复登录状态
+  /// 初始化认证服务 (Supabase SDK 自动处理 Session 恢复)
   Future<void> initialize() async {
-    await _client.initialize();
-    if (_client.isLoggedIn) {
-      try {
-        final userData = await _client.getCurrentUser();
-        _currentUser = CloudUser.fromJson(userData);
-      } catch (e) {
-        // 如果获取用户信息失败，清除登录状态
-        debugPrint('Failed to get current user: $e');
-        await _client.clearAuth();
-      }
+    // Supabase automatically restores session from secure storage
+    final session = _client.auth.currentSession;
+    if (session != null) {
+      debugPrint('[Auth] Session restored for user: ${session.user.id}');
     }
   }
 
@@ -69,13 +62,16 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final result = await _client.login(email: email, password: password);
+    final response = await _client.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
     
-    // 获取完整用户信息
-    final userData = await _client.getCurrentUser();
-    _currentUser = CloudUser.fromJson(userData);
-    
-    return _currentUser!;
+    if (response.user == null) {
+      throw Exception('Login failed: User is null');
+    }
+
+    return CloudUser.fromSupabase(response.user!);
   }
 
   /// 用户注册
@@ -84,39 +80,30 @@ class AuthService {
     required String password,
     String? username,
   }) async {
-    final result = await _client.register(
-      email: email, 
+    final response = await _client.auth.signUp(
+      email: email,
       password: password,
-      username: username,
+      data: username != null ? {'username': username} : null,
     );
     
-    // 注册后自动登录，获取用户信息
-    final userData = await _client.getCurrentUser();
-    _currentUser = CloudUser.fromJson(userData);
+    if (response.user == null) {
+      throw Exception('Registration failed: User is null');
+    }
     
-    return _currentUser!;
+    return CloudUser.fromSupabase(response.user!);
   }
 
   /// 用户登出
   Future<void> logout() async {
-    await _client.logout();
-    _currentUser = null;
+    await _client.auth.signOut();
   }
 
   /// 检查登录状态
   Future<bool> checkLoginStatus() async {
-    if (!_client.isLoggedIn) {
-      return false;
-    }
-    
-    try {
-      final userData = await _client.getCurrentUser();
-      _currentUser = CloudUser.fromJson(userData);
-      return true;
-    } catch (e) {
-      await _client.clearAuth();
-      _currentUser = null;
-      return false;
-    }
+    final session = _client.auth.currentSession;
+    return session != null;
   }
+  
+  /// 监听认证状态变化
+  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
 }

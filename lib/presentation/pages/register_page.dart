@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
-// Note: Uncomment when providers are properly configured
-// import '../providers/providers.dart';
+import '../providers/providers.dart';
+import '../../data/cloud/providers/auth_state.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -36,23 +36,26 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Note: Uncomment when providers are properly configured
-      // await ref.read(authStateProvider.notifier).register(
-      //   email: _emailController.text.trim(),
-      //   password: _passwordController.text,
-      //   username: _usernameController.text.trim().isEmpty 
-      //       ? null 
-      //       : _usernameController.text.trim(),
-      // );
+      await ref.read(authStateProvider.notifier).register(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        username: _usernameController.text.trim().isEmpty 
+            ? null 
+            : _usernameController.text.trim(),
+      );
 
-      // For now, just simulate a successful registration
-      await Future.delayed(const Duration(seconds: 1));
-      
-      if (mounted) {
+      if (!mounted) return;
+
+      final authState = ref.read(authStateProvider);
+      if (authState.status == AuthStatus.authenticated) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration successful! Please login.')),
+          const SnackBar(content: Text('Registration successful!')),
         );
         Navigator.of(context).pop();
+      } else if (authState.status == AuthStatus.error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Registration failed: ${authState.errorMessage}')),
+        );
       }
     } catch (e) {
       if (mounted) {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
+import '../../data/cloud/providers/auth_state.dart';
+import '../../data/cloud/providers/sync_state.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -91,56 +93,77 @@ class SettingsPage extends ConsumerWidget {
             ],
           ),
 
-          // Cloud Sync (Note: Requires configuration with MinApp credentials)
-          // To enable: Uncomment and configure the providers in providers.dart
+          // Cloud Sync
           _SettingsSection(
             title: l10n.cloudSync,
             children: [
-              // Placeholder for cloud sync functionality
-              // Uncomment when cloud providers are configured:
-              // Consumer(builder: (context, ref, _) {
-              //   final authState = ref.watch(authStateProvider);
-              //   if (authState.status == AuthStatus.authenticated) {
-              //     return Column(children: [
-              //       ListTile(
-              //         leading: const Icon(Icons.cloud_done),
-              //         title: Text(l10n.loggedInAs),
-              //         subtitle: Text(authState.user?.email ?? ''),
-              //       ),
-              //       ListTile(
-              //         leading: const Icon(Icons.sync),
-              //         title: Text(l10n.syncNow),
-              //         onTap: () => ref.read(syncStateProvider.notifier).syncAll(),
-              //       ),
-              //       ListTile(
-              //         leading: const Icon(Icons.logout),
-              //         title: Text(l10n.logout),
-              //         onTap: () => ref.read(authStateProvider.notifier).logout(),
-              //       ),
-              //     ]);
-              //   }
-              //   return Column(children: [
-              //     ListTile(
-              //       leading: const Icon(Icons.cloud_off),
-              //       title: Text(l10n.notLoggedIn),
-              //     ),
-              //     ListTile(
-              //       leading: const Icon(Icons.login),
-              //       title: Text(l10n.login),
-              //       onTap: () => Navigator.pushNamed(context, '/login'),
-              //     ),
-              //   ]);
-              // }),
-              ListTile(
-                leading: const Icon(Icons.cloud_off),
-                title: Text(l10n.notLoggedIn),
-                subtitle: const Text('Configure MinApp credentials to enable'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.login),
-                title: Text(l10n.login),
-                onTap: () => _showLoginDialog(context),
-              ),
+              Consumer(builder: (context, ref, _) {
+                final authState = ref.watch(authStateProvider);
+                final syncState = ref.watch(syncStateProvider);
+
+                if (authState.status == AuthStatus.authenticated) {
+                  return Column(children: [
+                    ListTile(
+                      leading: const Icon(Icons.cloud_done),
+                      title: Text(l10n.loggedInAs),
+                      subtitle: Text(authState.user?.email ?? ''),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.sync),
+                      title: Text(l10n.syncNow),
+                      trailing: syncState.status == SyncStatusState.syncing
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : null,
+                      onTap: syncState.status == SyncStatusState.syncing
+                          ? null
+                          : () async {
+                              await ref.read(syncStateProvider.notifier).syncAll();
+                              // Check result
+                              final result = ref.read(syncStateProvider);
+                              if (context.mounted) {
+                                if (result.status == SyncStatusState.success) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(l10n.syncSuccess)),
+                                  );
+                                } else if (result.status == SyncStatusState.error) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('${l10n.syncFailed}: ${result.errorMessage}')),
+                                  );
+                                }
+                              }
+                            },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.logout),
+                      title: Text(l10n.logout),
+                      onTap: () => ref.read(authStateProvider.notifier).logout(),
+                    ),
+                  ]);
+                }
+                return Column(children: [
+                  ListTile(
+                    leading: const Icon(Icons.cloud_off),
+                    title: Text(l10n.notLoggedIn),
+                    subtitle: !CloudConfig.isConfigured 
+                      ? const Text('Missing configuration') 
+                      : null,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.login),
+                    title: Text(l10n.login),
+                    enabled: CloudConfig.isConfigured,
+                    onTap: CloudConfig.isConfigured 
+                      ? () => Navigator.pushNamed(context, '/login')
+                      : () => ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please configure Supabase URL and Key')),
+                        ),
+                  ),
+                ]);
+              }),
             ],
           ),
 
@@ -214,35 +237,6 @@ class SettingsPage extends ConsumerWidget {
         );
       }
     }
-  }
-
-  void _showLoginDialog(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.cloudSync),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'To enable cloud sync, you need to:\n\n'
-              '1. Configure your MinApp ClientID and Secret in providers.dart\n'
-              '2. Create the required data tables in MinApp dashboard\n'
-              '3. Rebuild the app\n\n'
-              'See PROJECT_TRACKER.md for detailed instructions.',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.cancel),
-          ),
-        ],
-      ),
-    );
   }
 }
 

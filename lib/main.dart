@@ -1,10 +1,34 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'data/database/database.dart';
+import 'presentation/providers/providers.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Ignore SSL certificate errors in debug mode
+  if (kDebugMode) {
+    HttpOverrides.global = _MyHttpOverrides();
+  }
+
+  // Initialize Supabase
+  if (CloudConfig.isConfigured) {
+    try {
+      await Supabase.initialize(
+        url: CloudConfig.supabaseUrl,
+        anonKey: CloudConfig.supabaseAnonKey,
+      );
+      debugPrint('[DEBUG] Supabase initialized successfully');
+    } catch (e) {
+      debugPrint('[DEBUG] Supabase initialization failed: $e');
+    }
+  } else {
+    debugPrint('[DEBUG] Supabase configuration missing, skipping initialization');
+  }
   
   debugPrint('[DEBUG] Starting app initialization...');
   
@@ -16,6 +40,14 @@ void main() async {
       child: MuscleClockApp(),
     ),
   );
+}
+
+class _MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
 }
 
 Future<void> _initializeDefaultBodyParts() async {

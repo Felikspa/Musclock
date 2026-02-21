@@ -1,0 +1,40 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Muscle Clock (Dev)",
+            "request": "launch",
+            "type": "dart",
+            "toolArgs": [
+                "--dart-define",
+                "SUPABASE_URL=https://aduyywnkklrgnlsvswbq.supabase.co",
+                "--dart-define",
+                "SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkdXl5d25ra2xyZ25sc3Zzd2JxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2OTgzODYsImV4cCI6MjA4NzI3NDM4Nn0.WRGvvWkYw65XnnCe6jY1sgNlU3bLNK9Nl5yXO8dA0rc"
+            ]
+        },
+        {
+            "name": "Muscle Clock (Profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "toolArgs": [
+                "--dart-define",
+                "SUPABASE_URL=https://aduyywnkklrgnlsvswbq.supabase.co",
+                "--dart-define",
+                "SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkdXl5d25ra2xyZ25sc3Zzd2JxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2OTgzODYsImV4cCI6MjA4NzI3NDM4Nn0.WRGvvWkYw65XnnCe6jY1sgNlU3bLNK9Nl5yXO8dA0rc"
+            ]
+        },
+        {
+            "name": "Muscle Clock (Release)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release",
+            "toolArgs": [
+                "--dart-define",
+                "SUPABASE_URL=https://aduyywnkklrgnlsvswbq.supabase.co",
+                "--dart-define",
+                "SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkdXl5d25ra2xyZ25sc3Zzd2JxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2OTgzODYsImV4cCI6MjA4NzI3NDM4Nn0.WRGvvWkYw65XnnCe6jY1sgNlU3bLNK9Nl5yXO8dA0rc"
+            ]
+        }
+    ]
+}
