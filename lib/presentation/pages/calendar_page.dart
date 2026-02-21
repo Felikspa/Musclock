@@ -4,8 +4,11 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/enums/muscle_enum.dart';
 import '../../data/database/database.dart';
+import '../../domain/entities/exercise_record_with_session.dart';
 import '../providers/providers.dart';
+import '../widgets/training_details_dialog.dart';
 
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key});
@@ -382,7 +385,7 @@ class _ExerciseRecordsList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
 
-    return FutureBuilder<List<_ExerciseRecordWithSession>>(
+    return FutureBuilder<List<ExerciseRecordWithSession>>(
       future: _getAllExerciseRecords(db),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -417,8 +420,8 @@ class _ExerciseRecordsList extends ConsumerWidget {
     );
   }
 
-  Future<List<_ExerciseRecordWithSession>> _getAllExerciseRecords(AppDatabase db) async {
-    final List<_ExerciseRecordWithSession> allRecords = [];
+  Future<List<ExerciseRecordWithSession>> _getAllExerciseRecords(AppDatabase db) async {
+    final List<ExerciseRecordWithSession> allRecords = [];
 
     for (final session in sessions) {
       final records = await db.getRecordsBySession(session.id);
@@ -427,7 +430,7 @@ class _ExerciseRecordsList extends ConsumerWidget {
         if (exercise != null) {
           final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
           final sets = await db.getSetsByExerciseRecord(record.id);
-          allRecords.add(_ExerciseRecordWithSession(
+          allRecords.add(ExerciseRecordWithSession(
             record: record,
             session: session,
             exercise: exercise,
@@ -445,25 +448,9 @@ class _ExerciseRecordsList extends ConsumerWidget {
   }
 }
 
-class _ExerciseRecordWithSession {
-  final ExerciseRecord record;
-  final WorkoutSession session;
-  final Exercise exercise;
-  final BodyPart? bodyPart;
-  final List<SetRecord> sets;
-
-  _ExerciseRecordWithSession({
-    required this.record,
-    required this.session,
-    required this.exercise,
-    required this.bodyPart,
-    required this.sets,
-  });
-}
-
-// Individual exercise record card that can be expanded and edited
-class _ExerciseRecordCard extends ConsumerStatefulWidget {
-  final _ExerciseRecordWithSession exerciseRecord;
+// Individual exercise record card with color chips and details dialog
+class _ExerciseRecordCard extends StatelessWidget {
+  final ExerciseRecordWithSession exerciseRecord;
   final bool isDark;
   final AppLocalizations l10n;
 
@@ -473,165 +460,114 @@ class _ExerciseRecordCard extends ConsumerStatefulWidget {
     required this.l10n,
   });
 
-  @override
-  ConsumerState<_ExerciseRecordCard> createState() => _ExerciseRecordCardState();
-}
-
-class _ExerciseRecordCardState extends ConsumerState<_ExerciseRecordCard> {
-  bool _isExpanded = false;
-  bool _isEditing = false;
+  /// Map body part name to MuscleGroup for color display
+  MuscleGroup _getMuscleGroupByName(String name) {
+    final lowerName = name.toLowerCase();
+    if (lowerName.contains('chest') || lowerName.contains('胸')) {
+      return MuscleGroup.chest;
+    } else if (lowerName.contains('back') || lowerName.contains('背')) {
+      return MuscleGroup.back;
+    } else if (lowerName.contains('shoulder') || lowerName.contains('肩')) {
+      return MuscleGroup.shoulders;
+    } else if (lowerName.contains('leg') || lowerName.contains('腿')) {
+      return MuscleGroup.legs;
+    } else if (lowerName.contains('arm') || lowerName.contains('臂')) {
+      return MuscleGroup.arms;
+    } else if (lowerName.contains('glute') || lowerName.contains('臀')) {
+      return MuscleGroup.glutes;
+    } else if (lowerName.contains('abs') || lowerName.contains('腹')) {
+      return MuscleGroup.abs;
+    }
+    return MuscleGroup.rest;
+  }
 
   @override
   Widget build(BuildContext context) {
     final timeFormat = DateFormat('HH:mm');
-    final exercise = widget.exerciseRecord;
+    final exercise = exerciseRecord;
     final bodyPartName = exercise.bodyPart?.name ?? '';
     final exerciseName = exercise.exercise.name;
+
+    // Get muscle color
+    final muscleGroup = _getMuscleGroupByName(bodyPartName);
+    final muscleColor = AppTheme.getMuscleColor(muscleGroup);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+        color: isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Column(
-        children: [
-          // Clickable header
-          InkWell(
-            onTap: () {
-              setState(() {
-                _isExpanded = !_isExpanded;
-              });
-            },
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  // Body part name (large)
-                  Expanded(
-                    child: Text(
-                      bodyPartName.isNotEmpty ? '$bodyPartName: $exerciseName' : exerciseName,
-                      style: TextStyle(
-                        color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  // Time
-                  Text(
-                    timeFormat.format(exercise.session.startTime),
-                    style: TextStyle(
-                      color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    size: 18,
-                    color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                  ),
-                ],
-              ),
+      child: InkWell(
+        onTap: () {
+          // Show details dialog instead of expanding
+          showDialog(
+            context: context,
+            builder: (context) => TrainingDetailsDialog(
+              exerciseRecord: exerciseRecord,
+              isDark: isDark,
+              l10n: l10n,
             ),
+          );
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Body part color chip
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: muscleColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  bodyPartName,
+                  style: TextStyle(
+                    color: muscleColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Exercise name and sets info
+              Expanded(
+                child: exercise.sets.isNotEmpty
+                    ? Text(
+                        '$exerciseName • ${exercise.sets.length} sets',
+                        style: TextStyle(
+                          color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : Text(
+                        exerciseName,
+                        style: TextStyle(
+                          color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+              ),
+              const SizedBox(width: 8),
+              // Time on the right
+              Text(
+                timeFormat.format(exercise.session.startTime),
+                style: TextStyle(
+                  color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
-
-          // Expanded content
-          if (_isExpanded) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Sets display
-                  if (exercise.sets.isNotEmpty) ...[
-                    Text(
-                      widget.l10n.sets,
-                      style: TextStyle(
-                        color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: exercise.sets.map((set) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '${set.weight}kg x ${set.reps}',
-                            style: TextStyle(
-                              color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                              fontSize: 12,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ] else ...[
-                    Text(
-                      widget.l10n.noData,
-                      style: TextStyle(
-                        color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                  
-                  const SizedBox(height: 12),
-                  
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _isEditing = !_isEditing;
-                            });
-                          },
-                          icon: Icon(_isEditing ? Icons.close : Icons.edit, size: 16),
-                          label: Text(_isEditing ? widget.l10n.cancel : widget.l10n.edit),
-                        ),
-                      ),
-                      if (_isEditing) ...[
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () => _saveChanges(context),
-                            icon: const Icon(Icons.save, size: 16),
-                            label: Text(widget.l10n.save),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
-  }
-
-  Future<void> _saveChanges(BuildContext context) async {
-    // TODO: Implement edit functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit functionality coming soon')),
-    );
-    setState(() {
-      _isEditing = false;
-      _isExpanded = false;
-    });
   }
 }
 

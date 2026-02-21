@@ -327,6 +327,22 @@ abstract class SyncService {
 | | | - 添加currentSession和done本地化字符串 |
 | Bugfix | 2026-02-21 | 修复本地化字符串缺失导致的编译错误 |
 | | | - 添加currentSession和done键到app_en.arb和app_zh.arb |
+| Feature Update | 2026-02-21 | Calendar页面训练记录显示优化 |
+| | | - Calendar页点击日期显示的训练记录改为彩色框形式展示部位（与Plan页面相同） |
+| | | - 动作和组数信息显示在彩色框后面 |
+| | | - 时间用灰色小字号显示在右侧 |
+| | | - 点击记录项弹出独立Details窗口查看训练详情 |
+| | | - Details窗口内允许编辑训练信息（动作名称、添加/编辑/删除组数） |
+| | | - 新增TrainingDetailsDialog组件 |
+| | | - 新增workoutDetails和saved本地化字符串 |
+| Feature Update | 2026-02-21 | Today页面布局优化 |
+| | | - 改为层级式布局：Session为大栏目，包含多个训练项目次级栏目 |
+| | | - 每栏首行左侧用较大黑色字体显示训练部位名称 |
+| | | - 每栏首行右侧用较小灰色字体显示时间 |
+| | | - 第二行显示动作名称和组数（绿色实色框样式） |
+| | | - Analysis页面休息时间显示优化 |
+| | | - 部位休息时间从精确到天改为精确到小时 |
+| | | - 格式为 "x days x hours"，例如 "1 days 5 hours" |
 
 ---
 

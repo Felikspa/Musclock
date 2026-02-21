@@ -234,7 +234,10 @@ class _BodyPartStatCard extends ConsumerWidget {
 
                     final now = DateTime.now().toUtc();
                     final lastSession = bpSessions.first;
-                    final restDays = now.difference(lastSession.startTime).inDays;
+                    final totalHours = now.difference(lastSession.startTime).inHours;
+                    final restDays = totalHours ~/ 24;
+                    final restHours = totalHours % 24;
+                    final restTimeText = '$restDays ${l10n.days} $restHours ${l10n.hours}';
 
                     return Row(
                       children: [
@@ -242,7 +245,7 @@ class _BodyPartStatCard extends ConsumerWidget {
                           child: _MiniStat(
                             icon: Icons.timer,
                             label: l10n.currentRest,
-                            value: '$restDays ${l10n.days}',
+                            value: restTimeText,
                           ),
                         ),
                         Expanded(

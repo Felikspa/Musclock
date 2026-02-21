@@ -229,4 +229,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get done => 'Done';
+
+  @override
+  String get workoutDetails => 'Workout Details';
+
+  @override
+  String get saved => 'Saved';
 }

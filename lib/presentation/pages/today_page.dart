@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/enums/muscle_enum.dart';
 import '../../data/database/database.dart';
 import '../providers/providers.dart';
 
@@ -434,8 +435,16 @@ class _SavedSessionCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final recordsAsync = ref.watch(_recordsProvider(session.id));
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.cardDark : AppTheme.cardLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+          width: 1,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: recordsAsync.when(
@@ -460,38 +469,23 @@ class _SavedSessionCard extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: Body parts on left (large), time on right (small gray)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Main title: body parts
-                Expanded(
-                  child: Text(
-                    data.bodyParts.join(' + '),
-                    style: TextStyle(
-                      color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                // Time on right
-                Text(
-                  _formatTime(session.startTime),
-                  style: TextStyle(
-                    color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+            // Session header with body parts
+            Text(
+              data.bodyParts.join(' + '),
+              style: TextStyle(
+                color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             const SizedBox(height: 8),
             
-            // Exercise details with sets
+            // Exercise items list - each exercise is a sub-card
             ...data.exercises.map((exercise) => _ExerciseItemWidget(
               exercise: exercise,
               isDark: isDark,
               l10n: l10n,
+              sessionTime: session.startTime,
             )),
           ],
         );
@@ -562,58 +556,124 @@ class _ExerciseWithSets {
   });
 }
 
-// Widget for displaying a single exercise with its sets
+// Widget for displaying a single exercise with its sets - New Layout
 class _ExerciseItemWidget extends StatelessWidget {
   final _ExerciseWithSets exercise;
   final bool isDark;
   final AppLocalizations l10n;
+  final DateTime sessionTime;
 
   const _ExerciseItemWidget({
     required this.exercise,
     required this.isDark,
     required this.l10n,
+    required this.sessionTime,
   });
+
+  /// Map body part name to MuscleGroup for color display
+  MuscleGroup _getMuscleGroupByName(String name) {
+    final lowerName = name.toLowerCase();
+    if (lowerName.contains('chest') || lowerName.contains('胸')) {
+      return MuscleGroup.chest;
+    } else if (lowerName.contains('back') || lowerName.contains('背')) {
+      return MuscleGroup.back;
+    } else if (lowerName.contains('shoulder') || lowerName.contains('肩')) {
+      return MuscleGroup.shoulders;
+    } else if (lowerName.contains('leg') || lowerName.contains('腿')) {
+      return MuscleGroup.legs;
+    } else if (lowerName.contains('arm') || lowerName.contains('臂')) {
+      return MuscleGroup.arms;
+    } else if (lowerName.contains('glute') || lowerName.contains('臀')) {
+      return MuscleGroup.glutes;
+    } else if (lowerName.contains('abs') || lowerName.contains('腹')) {
+      return MuscleGroup.abs;
+    }
+    return MuscleGroup.rest;
+  }
+
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    // Get muscle color
+    final muscleGroup = _getMuscleGroupByName(exercise.bodyPart);
+    final muscleColor = AppTheme.getMuscleColor(muscleGroup);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Exercise name
-          Text(
-            exercise.name,
-            style: TextStyle(
-              color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+          // First row: Body part (large, left) + time (small gray, right)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Body part name - large text
+              Text(
+                exercise.bodyPart,
+                style: TextStyle(
+                  color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              // Time - small gray text
+              Text(
+                _formatTime(sessionTime),
+                style: TextStyle(
+                  color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
           
-          // Sets - only show if there are sets
-          if (exercise.sets.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: exercise.sets.map((set) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(4),
+          // Second row: Exercise name and/or sets
+          if (exercise.name.isNotEmpty || exercise.sets.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            // Exercise name
+            if (exercise.name.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  exercise.name,
+                  style: TextStyle(
+                    color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
                   ),
-                  child: Text(
-                    '${set.weight}kg x ${set.reps}',
-                    style: TextStyle(
-                      color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                      fontSize: 12,
+                ),
+              ),
+            // Sets with green boxes
+            if (exercise.sets.isNotEmpty)
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: exercise.sets.map((set) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent, // Green solid color
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
+                    child: Text(
+                      '${set.weight}kg x ${set.reps}',
+                      style: TextStyle(
+                        color: isDark ? AppTheme.primaryDark : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
           ],
         ],
       ),

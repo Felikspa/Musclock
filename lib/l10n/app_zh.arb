@@ -74,5 +74,7 @@
   "upperLower": "上下身",
   "broSplit": "分离训练",
   "currentSession": "当前训练",
-  "done": "完成"
+  "done": "完成",
+  "workoutDetails": "训练详情",
+  "saved": "已保存"
 }

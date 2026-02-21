@@ -74,5 +74,7 @@
   "upperLower": "Upper/Lower",
   "broSplit": "Bro Split",
   "currentSession": "Current Session",
-  "done": "Done"
+  "done": "Done",
+  "workoutDetails": "Workout Details",
+  "saved": "Saved"
 }

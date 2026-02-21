@@ -229,4 +229,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get done => '完成';
+
+  @override
+  String get workoutDetails => '训练详情';
+
+  @override
+  String get saved => '已保存';
 }
