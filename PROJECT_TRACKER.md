@@ -1,7 +1,7 @@
 # Muscle Clock 项目档案
 
 > **最后更新**: 2026-02-21
-> **版本**: v1.2.5 (Bugfix)
+> **版本**: v1.2.6 (Feature)
 > **状态**: 维护与优化阶段
 
 ## 1. 项目概览 (Overview)
@@ -210,6 +210,7 @@ abstract class SyncService {
 
 | 版本 | 日期 | 类型 | 说明 |
 |------|------|------|------|
+| **v1.2.6** | 2026-02-21 | Feature | **PlanSetupDialog交互优化**<br>- **参考实现**: 参考 Workout tracker 项目中的 custom plan 创建交互。<br>- **优化内容**: 移除了弹窗式的编辑方式，改为在每行直接显示可点击的部位彩色框。用户可以直接点击相应部位来快速设定计划，无需额外的弹窗确认。<br>- **新增**: 添加部位图例显示，帮助用户快速识别颜色对应的部位。<br>- **本地化**: 添加 `tapToSetTraining` 翻译键支持中英文。 |
 | **v1.2.5** | 2026-02-21 | Bugfix | **Today Session View实时更新Bug**<br>- **问题**: Today Session View中新增或删除session项目后不能实时显示，而Active Workout View和Calendar中都能正常显示。<br>- **修复**: 根本原因是 `_recordsProvider` 使用了 `FutureProvider.family`，该Provider只在首次加载时获取数据，不会监听数据库变化。修改为使用 `StreamProvider.family` 配合数据库的 `watchRecordsBySession()` 方法，实现对记录变化的实时监听。 |
 | **v1.2.4** | 2026-02-21 | Bugfix | **New Session添加项目后不显示Bug**<br>- **问题**: 新建session添加项目保存后，新项目不能直接显示在today页，必须重启app才能显示。<br>- **修复**: 根本原因是 `ActiveWorkoutView` 通过构造函数参数接收 `sessionState`，而不是自己通过 `ref.watch()` 监听 provider。修改为让 `ActiveWorkoutView` 直接监听 `workoutSessionProvider`，确保状态变化时UI正确刷新。 |
 | **v1.2.3** | 2026-02-21 | Bugfix | **Part-only项目显示修复**<br>- **问题**: 只设置训练部位但不设置训练内容的项目（part-only）在Calendar中能显示，但在Today页不能显示。<br>- **修复**: 在 `today_session_view.dart` 的 `_getSessionDisplayData` 方法中添加对 part-only 记录的处理逻辑，解析 `exerciseId` 中的 `bodyPart:` 前缀并正确显示训练部位。 |

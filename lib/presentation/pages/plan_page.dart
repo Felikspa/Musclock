@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/database/database.dart';
 import '../providers/providers.dart';
 import '../widgets/plan/plan_selector.dart';
 import '../widgets/plan/plan_details_widget.dart';
@@ -16,7 +15,7 @@ final allPlanNamesProvider = Provider<List<String>>((ref) {
   return customPlansAsync.when(
     data: (customPlans) => [...presetPlans, ...customPlans.map((p) => p.name)],
     loading: () => presetPlans,
-    error: (_, __) => presetPlans,
+    error: (e, s) => presetPlans,
   );
 });
 
@@ -105,97 +104,17 @@ class _PlanPageState extends ConsumerState<PlanPage> {
   }
 
   void _showCreatePlanDialog(BuildContext context, WidgetRef ref, AppLocalizations l10n, bool isDark) {
-    final nameController = TextEditingController();
-    final cycleLengthController = TextEditingController(text: '7');
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? AppTheme.cardDark : AppTheme.cardLight,
-        title: Text(
-          l10n.createPlan,
-          style: TextStyle(
-            color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              style: TextStyle(
-                color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-              ),
-              decoration: InputDecoration(
-                labelText: l10n.planName,
-                labelStyle: TextStyle(
-                  color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                ),
-              ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: cycleLengthController,
-              style: TextStyle(
-                color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-              ),
-              decoration: InputDecoration(
-                labelText: l10n.cycleLength,
-                suffixText: l10n.days,
-                labelStyle: TextStyle(
-                  color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                ),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.cancel),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.isNotEmpty) {
-                final cycleLength = int.tryParse(cycleLengthController.text) ?? 7;
-                final repo = ref.read(planRepositoryProvider);
-                final planId = DateTime.now().millisecondsSinceEpoch.toString();
-
-                await repo.insertPlan(TrainingPlansCompanion.insert(
-                  id: planId,
-                  name: nameController.text,
-                  cycleLengthDays: cycleLength,
-                  createdAt: DateTime.now().toUtc(),
-                ));
-
-                ref.invalidate(plansProvider);
-
-                if (context.mounted) {
-                  // Close the create dialog first
-                  Navigator.pop(context);
-
-                  // Then show the plan setup dialog
-                  _showPlanSetupDialog(context, ref, l10n, isDark, planId, nameController.text, cycleLength);
-                }
-              }
-            },
-            child: Text(l10n.save),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPlanSetupDialog(BuildContext context, WidgetRef ref, AppLocalizations l10n, bool isDark, String planId, String planName, int cycleLengthDays) {
+    // DEBUG: Print to verify this is being called
+    print('DEBUG: _showCreatePlanDialog called - opening PlanSetupDialog');
+    
+    // Directly open PlanSetupDialog with null parameters (new plan mode)
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => PlanSetupDialog(
-        planId: planId,
-        planName: planName,
-        cycleLengthDays: cycleLengthDays,
+        planId: null,
+        planName: null,
+        cycleLengthDays: null,
         l10n: l10n,
         isDark: isDark,
       ),

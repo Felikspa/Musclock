@@ -7,17 +7,17 @@ import '../../providers/providers.dart';
 import '../../widgets/muscle_group_helper.dart';
 
 class PlanSetupDialog extends ConsumerStatefulWidget {
-  final String planId;
-  final String planName;
-  final int cycleLengthDays;
+  final String? planId; // null for new plan
+  final String? planName; // null for new plan
+  final int? cycleLengthDays; // null for new plan
   final AppLocalizations l10n;
   final bool isDark;
 
   const PlanSetupDialog({
     super.key,
-    required this.planId,
-    required this.planName,
-    required this.cycleLengthDays,
+    this.planId,
+    this.planName,
+    this.cycleLengthDays,
     required this.l10n,
     required this.isDark,
   });
@@ -27,22 +27,59 @@ class PlanSetupDialog extends ConsumerStatefulWidget {
 }
 
 class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
+  late TextEditingController _nameController;
+  late int _cycleLength;
   late List<DayConfig> _dayConfigs;
   bool _isLoading = true;
+  bool _isNewPlan = false;
+  String? _currentPlanId;
 
   @override
   void initState() {
     super.initState();
+    _isNewPlan = widget.planId == null;
+    _currentPlanId = widget.planId ?? DateTime.now().millisecondsSinceEpoch.toString();
+
+    // DEBUG
+    print('DEBUG: PlanSetupDialog init - planId: ${widget.planId}, _isNewPlan: $_isNewPlan');
+
+    _nameController = TextEditingController(text: widget.planName ?? '');
+    _cycleLength = widget.cycleLengthDays ?? 7;
+
+    _initDayConfigs();
+  }
+
+  void _initDayConfigs() {
     _dayConfigs = List.generate(
-      widget.cycleLengthDays,
+      _cycleLength,
       (index) => DayConfig(dayIndex: index, bodyPartIds: [], isRest: true),
     );
     _loadExistingItems();
   }
 
+  void _updateCycleLength(int newLength) {
+    if (newLength < 1 || newLength > 365) return;
+
+    setState(() {
+      _cycleLength = newLength;
+      // Reinitialize day configs with the new cycle length
+      _dayConfigs = List.generate(
+        _cycleLength,
+        (index) => DayConfig(dayIndex: index, bodyPartIds: [], isRest: true),
+      );
+    });
+  }
+
   Future<void> _loadExistingItems() async {
+    if (widget.planId == null) {
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+    
     final repo = ref.read(planRepositoryProvider);
-    final existingItems = await repo.getPlanItemsByPlan(widget.planId);
+    final existingItems = await repo.getPlanItemsByPlan(widget.planId!);
 
     for (var item in existingItems) {
       if (item.dayIndex < _dayConfigs.length) {
@@ -59,185 +96,130 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
     });
   }
 
-  Future<void> _saveDayConfig(int dayIndex, List<String> bodyPartIds, bool isRest) async {
+  Future<void> _savePlan() async {
+    if (_nameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(widget.l10n.planName)),
+      );
+      return;
+    }
+
     final repo = ref.read(planRepositoryProvider);
 
-    // Remove existing item for this day if any
-    final existingItems = await repo.getPlanItemsByPlan(widget.planId);
+    // Insert or update the plan
+    await repo.insertPlan(TrainingPlansCompanion.insert(
+      id: _currentPlanId!,
+      name: _nameController.text,
+      cycleLengthDays: _cycleLength,
+      createdAt: DateTime.now().toUtc(),
+    ));
+
+    // Save all day configs
+    for (var config in _dayConfigs) {
+      await _saveDayConfig(config.dayIndex, config.bodyPartIds, config.isRest);
+    }
+
+    // Refresh providers and close
+    ref.invalidate(plansProvider);
+    ref.read(selectedPlanProvider.notifier).state = _nameController.text;
+    Navigator.pop(context);
+  }
+
+  Future<void> _toggleBodyPart(int dayIndex, String bodyPartId) async {
+    final currentConfig = _dayConfigs[dayIndex];
+    final List<String> newBodyPartIds;
+    final bool newIsRest;
+
+    if (currentConfig.isRest) {
+      newBodyPartIds = [bodyPartId];
+      newIsRest = false;
+    } else if (currentConfig.bodyPartIds.contains(bodyPartId)) {
+      newBodyPartIds = List.from(currentConfig.bodyPartIds)..remove(bodyPartId);
+      newIsRest = newBodyPartIds.isEmpty;
+    } else {
+      newBodyPartIds = List.from(currentConfig.bodyPartIds)..add(bodyPartId);
+      newIsRest = false;
+    }
+
+    await _saveDayConfig(dayIndex, newBodyPartIds, newIsRest);
+
+    setState(() {
+      _dayConfigs[dayIndex] = DayConfig(
+        dayIndex: dayIndex,
+        bodyPartIds: newBodyPartIds,
+        isRest: newIsRest,
+      );
+    });
+  }
+
+  Future<void> _setRestDay(int dayIndex) async {
+    await _saveDayConfig(dayIndex, [], true);
+    setState(() {
+      _dayConfigs[dayIndex] = DayConfig(
+        dayIndex: dayIndex,
+        bodyPartIds: [],
+        isRest: true,
+      );
+    });
+  }
+
+  Future<void> _saveDayConfig(int dayIndex, List<String> bodyPartIds, bool isRest) async {
+    if (_currentPlanId == null) return;
+    
+    final repo = ref.read(planRepositoryProvider);
+    final existingItems = await repo.getPlanItemsByPlan(_currentPlanId!);
     final existingItem = existingItems.where((item) => item.dayIndex == dayIndex).firstOrNull;
 
     if (existingItem != null) {
       await repo.deletePlanItem(existingItem.id);
     }
 
-    // Add new item
     if (!isRest && bodyPartIds.isNotEmpty) {
       await repo.insertPlanItem(PlanItemsCompanion.insert(
         id: DateTime.now().millisecondsSinceEpoch.toString() + dayIndex.toString(),
-        planId: widget.planId,
+        planId: _currentPlanId!,
         dayIndex: dayIndex,
         bodyPartIds: bodyPartIds.join(','),
       ));
     }
-
-    setState(() {
-      _dayConfigs[dayIndex] = DayConfig(
-        dayIndex: dayIndex,
-        bodyPartIds: bodyPartIds,
-        isRest: isRest,
-      );
-    });
   }
 
-  void _showDayEditDialog(int dayIndex) {
-    final currentConfig = _dayConfigs[dayIndex];
-    List<String> selectedBodyPartIds = List.from(currentConfig.bodyPartIds);
-    bool isRest = currentConfig.isRest;
-
-    final bodyPartsAsync = ref.read(bodyPartsProvider);
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: widget.isDark ? AppTheme.cardDark : AppTheme.cardLight,
-          title: Text(
-            'Day ${dayIndex + 1}',
-            style: TextStyle(
-              color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-            ),
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Rest toggle
-                Row(
-                  children: [
-                    Text(
-                      widget.l10n.rest,
-                      style: TextStyle(
-                        color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const Spacer(),
-                    Switch(
-                      value: isRest,
-                      onChanged: (value) {
-                        setDialogState(() {
-                          isRest = value;
-                          if (value) {
-                            selectedBodyPartIds.clear();
-                          }
-                        });
-                      },
-                      activeColor: AppTheme.accent,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (!isRest) ...[
-                  Text(
-                    'Select Body Parts:',
-                    style: TextStyle(
-                      color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  bodyPartsAsync.when(
-                    data: (bodyParts) => Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: bodyParts.map((bp) {
-                        final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
-                        final color = AppTheme.getMuscleColor(muscleGroup);
-                        final isSelected = selectedBodyPartIds.contains(bp.id);
-
-                        return GestureDetector(
-                          onTap: () {
-                            setDialogState(() {
-                              if (isSelected) {
-                                selectedBodyPartIds.remove(bp.id);
-                              } else {
-                                selectedBodyPartIds.add(bp.id);
-                              }
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: isSelected ? color.withOpacity(0.3) : (widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: isSelected ? color : Colors.transparent,
-                                width: 2,
-                              ),
-                            ),
-                            child: Text(
-                              bp.name,
-                              style: TextStyle(
-                                color: isSelected ? color : (widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight),
-                                fontSize: 14,
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    loading: () => const CircularProgressIndicator(),
-                    error: (e, s) => Text('Error: $e'),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(widget.l10n.cancel),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await _saveDayConfig(dayIndex, selectedBodyPartIds, isRest);
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: Text(widget.l10n.save),
-            ),
-          ],
-        ),
-      ),
-    );
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // DEBUG
+    print('DEBUG: PlanSetupDialog build - _isNewPlan: $_isNewPlan');
+
     final screenHeight = MediaQuery.of(context).size.height;
+    final bodyPartsAsync = ref.watch(bodyPartsProvider);
 
     return Dialog(
       backgroundColor: widget.isDark ? AppTheme.primaryDark : AppTheme.primaryLight,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: double.maxFinite,
-        height: screenHeight * 0.8,
+        height: screenHeight * 0.88,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Header with close button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  widget.planName,
-                  style: TextStyle(
-                    color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    _nameController.text.isEmpty ? widget.l10n.createPlan : _nameController.text,
+                    style: TextStyle(
+                      color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -249,45 +231,142 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap a day to set training',
-              style: TextStyle(
-                color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                fontSize: 14,
-              ),
-            ),
             const SizedBox(height: 16),
-            // Days list
+
+            // Plan name input
+            TextField(
+              controller: _nameController,
+              style: TextStyle(
+                color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+              ),
+              decoration: InputDecoration(
+                labelText: widget.l10n.planName,
+                labelStyle: TextStyle(
+                  color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                ),
+                hintText: widget.l10n.enterName,
+                hintStyle: TextStyle(
+                  color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {}); // Update header when name changes
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Cycle length with +/- buttons
+            Row(
+              children: [
+                Text(
+                  widget.l10n.cycleLength,
+                  style: TextStyle(
+                    color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Minus button
+                GestureDetector(
+                  onTap: () => _updateCycleLength(_cycleLength - 1),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      Icons.remove,
+                      color: AppTheme.accent,
+                      size: 18,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Cycle length display
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '$_cycleLength ${widget.l10n.days}',
+                    style: TextStyle(
+                      color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Plus button
+                GestureDetector(
+                  onTap: () => _updateCycleLength(_cycleLength + 1),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      Icons.add,
+                      color: AppTheme.accent,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Days list with inline body part selection
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      itemCount: _dayConfigs.length,
-                      itemBuilder: (context, index) {
-                        final config = _dayConfigs[index];
-                        return DayRow(
-                          dayIndex: index,
-                          config: config,
-                          isDark: widget.isDark,
-                          l10n: widget.l10n,
-                          bodyPartsAsync: ref.watch(bodyPartsProvider),
-                          onTap: () => _showDayEditDialog(index),
-                        );
-                      },
+                  : bodyPartsAsync.when(
+                      data: (bodyParts) => StatefulBuilder(
+                        builder: (context, setDialogState) {
+                          return ListView.builder(
+                            itemCount: _dayConfigs.length,
+                            itemBuilder: (context, index) {
+                              final config = _dayConfigs[index];
+                              return _DayRowInline(
+                                dayIndex: index,
+                                config: config,
+                                bodyParts: bodyParts,
+                                isDark: widget.isDark,
+                                onToggleBodyPart: (bodyPartId) {
+                                  _toggleBodyPart(index, bodyPartId);
+                                  setDialogState(() {});
+                                },
+                                onSetRest: () {
+                                  _setRestDay(index);
+                                  setDialogState(() {});
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                      loading: () => const Center(child: CircularProgressIndicator()),
+                      error: (e, s) => Center(child: Text('Error: $e')),
                     ),
             ),
             const SizedBox(height: 16),
-            // Done button
+
+            // Save button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  ref.invalidate(plansProvider);
-                  ref.read(selectedPlanProvider.notifier).state = widget.planName;
-                  Navigator.pop(context);
-                },
-                child: const Text('Done'),
+                onPressed: _savePlan,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.accent,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(_isNewPlan ? widget.l10n.createPlan : widget.l10n.done),
               ),
             ),
           ],
@@ -309,130 +388,113 @@ class DayConfig {
   });
 }
 
-class DayRow extends StatelessWidget {
+class _DayRowInline extends StatelessWidget {
   final int dayIndex;
   final DayConfig config;
+  final List<BodyPart> bodyParts;
   final bool isDark;
-  final AppLocalizations l10n;
-  final AsyncValue<List<BodyPart>> bodyPartsAsync;
-  final VoidCallback onTap;
+  final Function(String) onToggleBodyPart;
+  final VoidCallback onSetRest;
 
-  const DayRow({
-    super.key,
+  const _DayRowInline({
     required this.dayIndex,
     required this.config,
+    required this.bodyParts,
     required this.isDark,
-    required this.l10n,
-    required this.bodyPartsAsync,
+    required this.onToggleBodyPart,
+    required this.onSetRest,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              'Day ${dayIndex + 1}',
+              style: TextStyle(
+                color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _BodyPartChip(
+                label: 'Rest',
+                color: Colors.grey,
+                isSelected: config.isRest,
+                onTap: onSetRest,
+              ),
+              ...bodyParts.map((bp) {
+                final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
+                final color = AppTheme.getMuscleColor(muscleGroup);
+                final isSelected = config.bodyPartIds.contains(bp.id);
+
+                return _BodyPartChip(
+                  label: bp.name,
+                  color: color,
+                  isSelected: isSelected,
+                  onTap: () => onToggleBodyPart(bp.id),
+                );
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BodyPartChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _BodyPartChip({
+    required this.label,
+    required this.color,
+    required this.isSelected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
-              width: 1,
-            ),
+          color: isSelected ? color.withValues(alpha: 0.3) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : (Colors.grey.withValues(alpha: 0.3)),
+            width: isSelected ? 2 : 1,
           ),
         ),
-        child: Row(
-          children: [
-            // Day label
-            SizedBox(
-              width: 60,
-              child: Text(
-                'Day ${dayIndex + 1}',
-                style: TextStyle(
-                  color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Body parts or rest
-            Expanded(
-              child: config.isRest
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        l10n.rest,
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    )
-                  : bodyPartsAsync.when(
-                      data: (bodyParts) {
-                        final names = bodyParts
-                            .where((bp) => config.bodyPartIds.contains(bp.id))
-                            .map((bp) => bp.name)
-                            .toList();
-
-                        if (names.isEmpty) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              l10n.rest,
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 14,
-                              ),
-                            ),
-                          );
-                        }
-
-                        return Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: names.map((name) {
-                            final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(name);
-                            final color = AppTheme.getMuscleColor(muscleGroup);
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: color.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                name,
-                                style: TextStyle(
-                                  color: color,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        );
-                      },
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
-                    ),
-            ),
-            // Arrow indicator
-            Icon(
-              Icons.chevron_right,
-              color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? color : Colors.grey,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
         ),
       ),
     );
