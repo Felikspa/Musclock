@@ -5,6 +5,7 @@ import 'package:drift/drift.dart' show Value;
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import 'muscle_group_helper.dart';
+import 'training_set_data.dart';
 import '../../data/database/database.dart';
 import '../../domain/entities/exercise_record_with_session.dart';
 import '../providers/providers.dart';
@@ -26,7 +27,7 @@ class TrainingDetailsDialog extends ConsumerStatefulWidget {
 
 class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
   bool _isEditing = false;
-  late List<_SetData> _sets;
+  late List<TrainingSetData> _sets;
   late TextEditingController _exerciseNameController;
   String? _selectedBodyPartId;
 
@@ -34,7 +35,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
   void initState() {
     super.initState();
     _sets = widget.exerciseRecord.sets
-        .map((s) => _SetData(
+        .map((s) => TrainingSetData(
               id: s.id,
               weight: s.weight,
               reps: s.reps,
@@ -280,7 +281,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                       setState(() {
                         _isEditing = false;
                         _sets = widget.exerciseRecord.sets
-                            .map((s) => _SetData(
+                            .map((s) => TrainingSetData(
                                   id: s.id,
                                   weight: s.weight,
                                   reps: s.reps,
@@ -320,7 +321,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     );
   }
 
-  Widget _buildSetItem(_SetData set, int index) {
+  Widget _buildSetItem(TrainingSetData set, int index) {
     if (_isEditing) {
       return Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -473,7 +474,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
 
   void _addSet() {
     setState(() {
-      _sets.add(_SetData(
+      _sets.add(TrainingSetData(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         weight: 0,
         reps: 0,
@@ -565,16 +566,4 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
       }
     }
   }
-}
-
-class _SetData {
-  String id;
-  double weight;
-  int reps;
-
-  _SetData({
-    required this.id,
-    required this.weight,
-    required this.reps,
-  });
 }

@@ -62,6 +62,28 @@ final sessionsProvider = StreamProvider<List<WorkoutSession>>((ref) {
   return ref.watch(databaseProvider).watchAllSessions();
 });
 
+// Sessions indexed by date for O(1) lookup in calendar
+final sessionsByDateProvider = Provider<Map<DateTime, List<WorkoutSession>>>((ref) {
+  final sessionsAsync = ref.watch(sessionsProvider);
+  
+  return sessionsAsync.when(
+    data: (sessions) {
+      final Map<DateTime, List<WorkoutSession>> index = {};
+      for (final session in sessions) {
+        final date = DateTime(
+          session.startTime.year,
+          session.startTime.month,
+          session.startTime.day,
+        );
+        index.putIfAbsent(date, () => []).add(session);
+      }
+      return index;
+    },
+    loading: () => {},
+    error: (_, __) => {},
+  );
+});
+
 final plansProvider = StreamProvider<List<TrainingPlan>>((ref) {
   return ref.watch(databaseProvider).watchAllPlans();
 });
@@ -85,3 +107,6 @@ final customPlanByNameProvider = Provider.family<TrainingPlan?, String>((ref, pl
 // Settings Providers - Use Flutter's ThemeMode
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 final localeProvider = StateProvider<String>((ref) => 'en');
+
+// Plan Page State
+final selectedPlanProvider = StateProvider<String>((ref) => 'PPL');

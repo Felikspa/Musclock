@@ -1,129 +1,92 @@
-# Muscle Clock 项目跟踪文档
+# Muscle Clock 项目档案
 
-## 项目概述
+> **最后更新**: 2026-02-21
+> **版本**: v1.2.0 (Refactored)
+> **状态**: 维护与优化阶段
 
-- **项目名称**: Muscle Clock
-- **平台**: Flutter (Android)
-- **版本**: MVP 1.1
-- **数据存储**: 本地优先（预留云同步接口）
-- **最后更新**: 2026-02-20
+## 1. 项目概览 (Overview)
 
----
+**Muscle Clock** 是一款基于 Flutter 的轻量级力量训练记录与分析工具。它采用 Clean Architecture 架构，旨在帮助用户科学地记录训练内容、追踪肌肉恢复状态、分析训练频率，并制定周期性训练计划。
 
-## 一、产品愿景
-
-轻量级力量训练记录与分析工具，帮助用户：
-- 记录每次训练内容和强度
-- 计算肌肉恢复周期，避免过度训练
-- 统计训练频率，追踪训练习惯
-- 自定义周期计划，科学安排训练
+### 核心功能
+- **训练记录 (Today)**: 实时记录训练动作、组数、重量与次数，支持自动计算容量。
+- **日历视图 (Calendar)**: 按月展示训练历史，热力图风格直观呈现训练强度。
+- **数据分析 (Analysis)**: 多维度统计（部位训练频率、休息天数、总容量），辅助科学训练。
+- **计划管理 (Plan)**: 支持 PPL、Upper/Lower 等经典分化计划及自定义计划。
+- **本地优先**: 数据完全存储在本地 SQLite 数据库，支持 JSON/CSV 导出与备份。
 
 ---
 
-## 二、核心架构设计
+## 2. 技术架构 (Architecture)
+
+项目遵循 **Clean Architecture** 分层原则，配合 **Riverpod** 进行状态管理。
 
 ### 2.1 架构分层
 
-```
-┌─────────────────────────────────────┐
-│         Presentation Layer          │
-│      (Flutter + Riverpod/Bloc)      │
-├─────────────────────────────────────┤
-│            Domain Layer             │
-│        (UseCases + Entities)        │
-├─────────────────────────────────────┤
-│             Data Layer              │
-│  Repository + LocalDataSource(Drift) │
-│      RemoteDataSource (预留)         │
-└─────────────────────────────────────┘
+```mermaid
+graph TD
+    UI[Presentation Layer] --> Domain[Domain Layer]
+    Domain --> Data[Data Layer]
+    
+    subgraph Presentation [Flutter + Riverpod]
+        Pages[Pages]
+        Widgets[Widgets]
+        Providers[StateNotifiers / Providers]
+    end
+    
+    subgraph Domain [Pure Dart]
+        Entities[Entities]
+        UseCases[UseCases]
+        RepoInterfaces[Repository Interfaces]
+    end
+    
+    subgraph Data [Drift + Services]
+        RepoImpl[Repository Implementation]
+        Database[Drift Database (SQLite)]
+        Services[Backup/Export Services]
+    end
 ```
 
-### 2.2 技术选型
+### 2.2 目录结构
+- `lib/core`: 核心配置（主题 `theme`、常量 `constants`、枚举 `enums`）。
+- `lib/data`: 数据层实现（Drift 数据库 `database`、服务 `services`）。
+- `lib/domain`: 业务领域层（实体 `entities`、仓库接口 `repositories`、业务逻辑 `usecases`）。
+- `lib/presentation`: UI 层（页面 `pages`、通用组件 `widgets`、状态管理 `providers`）。
+- `lib/l10n`: 国际化资源。
 
-| 组件 | 选型 | 理由 |
-|------|------|------|
-| 状态管理 | Riverpod | 轻量、声明式、易测试 |
-| 本地数据库 | Drift (SQLite) | 结构化强、支持复杂查询、适合统计计算 |
-| 国际化 | Flutter intl | 官方推荐方案 |
-| 主题管理 | ThemeMode + SharedPreferences | 轻量实现 |
+### 2.3 关键技术栈
+| 领域 | 库/工具 | 说明 |
+|------|---------|------|
+| **Framework** | Flutter | 跨平台 UI 框架 |
+| **Language** | Dart 3 | 强类型、空安全 |
+| **State Management** | Flutter Riverpod | 声明式状态管理，依赖注入 |
+| **Database** | Drift (SQLite) | 类型安全的 ORM，支持 Stream 响应式查询 |
+| **Localization** | flutter_localizations | 官方国际化方案 (ARB) |
+| **Utils** | intl, uuid, path_provider | 基础工具库 |
 
 ---
 
-## 三、数据模型
+## 3. 数据模型 (Data Models)
 
-### 3.1 实体定义
+基于 Drift 定义的 SQLite 表结构，核心实体关系如下：
 
-```dart
-// BodyPart - 训练部位
-class BodyPart {
-  String id;          // UUID
-  String name;        // 部位名称
-  DateTime createdAt; // 创建时间
-  bool isDeleted;     // 软删除标记
-}
+### 3.1 核心实体
+- **BodyPart**: 训练部位（如 Chest, Back）。支持软删除。
+- **Exercise**: 训练动作，归属于某个 BodyPart。
+- **WorkoutSession**: 一次训练会话，包含开始时间。
+- **ExerciseRecord**: 会话中的动作记录，关联 Session 和 Exercise。
+- **SetRecord**: 动作下的具体组数据（Weight, Reps, Order）。
+- **TrainingPlan**: 周期性训练计划（如 "Push Pull Legs"）。
+- **PlanItem**: 计划中的单日安排，定义该日训练哪些 BodyPart。
 
-// Exercise - 训练动作
-class Exercise {
-  String id;          // UUID
-  String name;        // 动作名称
-  String bodyPartId;  // 关联部位ID
-  DateTime createdAt; // 创建时间
-}
-
-// WorkoutSession - 训练会话
-class WorkoutSession {
-  String id;          // UUID
-  DateTime startTime; // 开始时间（精确到分钟）
-  DateTime createdAt; // 创建时间
-}
-
-// ExerciseRecord - 动作记录
-class ExerciseRecord {
-  String id;           // UUID
-  String sessionId;    // 会话ID
-  String exerciseId;  // 动作ID
-}
-
-// SetRecord - 组记录
-class SetRecord {
-  String id;               // UUID
-  String exerciseRecordId;  // 动作记录ID
-  double weight;           // 重量(kg)
-  int reps;                // 次数
-  int orderIndex;          // 组序号
-}
-
-// TrainingPlan - 训练计划
-class TrainingPlan {
-  String id;               // UUID
-  String name;             // 计划名称
-  int cycleLengthDays;     // 周期长度(天)
-  DateTime createdAt;      // 创建时间
-}
-
-// PlanItem - 计划项目
-class PlanItem {
-  String id;               // UUID
-  String planId;           // 计划ID
-  int dayIndex;            // 日期索引(0 ~ cycleLengthDays-1)
-  List<String> bodyPartIds; // 部位ID列表
-}
-```
-
-### 3.2 关键架构决策
-
-| 决策项 | 选择 | 说明 |
-|--------|------|------|
-| BodyPart删除 | 软删除 | 标记isDeleted=true，历史数据保留但隐藏 |
-| Exercise部位修改 | 允许 | 可随时改变归属部位 |
-| 同一天多次训练 | 分开展示 | 多个独立Session |
-| 历史记录修改 | 有限允许 | 仅当天记录可修改 |
-| 时区处理 | UTC | 统一使用UTC时间戳存储 |
-| 跨天训练归属 | 开始时间 | 按Session开始日期归属 |
+### 3.2 关键字段说明
+- **ID 生成**: 全局使用 UUID v4 字符串。
+- **时间存储**: 统一使用 UTC 时间戳。
+- **列表存储**: `bodyPartIds` 等字段在数据库中以 JSON 字符串存储，在实体中转为 List。
 
 ---
 
-## 四、核心算法
+## 4. 核心算法 (Core Algorithms)
 
 ### 4.1 部位恢复天数计算
 
@@ -170,7 +133,7 @@ Map<DateTime, double> dailyVolume
 
 ---
 
-## 五、功能模块
+## 5. 功能模块 (Functional Modules)
 
 ### 5.1 Calendar 模块
 
@@ -230,7 +193,7 @@ New Session → Add Exercise → Add Sets → Save
 
 ---
 
-## 六、云同步预留
+## 6. 云同步预留 (Cloud Sync)
 
 ```dart
 abstract class SyncService {
@@ -243,223 +206,12 @@ abstract class SyncService {
 
 ---
 
-## 七、开发计划
+## 7. 版本历史 (Version History)
 
-### 阶段1: 基础架构搭建
-
-- [x] Flutter项目初始化
-- [x] Drift数据库配置
-- [x] 数据模型实体创建
-- [x] 基础Repository实现
-
-### 阶段2: 核心功能开发
-
-- [x] Today模块 - 训练记录
-- [x] Calendar模块 - 月视图
-- [x] Analysis模块 - 统计分析
-
-### 阶段3: 计划与设置
-
-- [x] Plan模块 - 训练计划
-- [x] Settings模块 - 主题/语言
-
-### 阶段4: 数据功能
-
-- [x] 数据导出功能 (JSON/CSV)
-- [x] 数据备份功能
-
-### 阶段5: 完善与测试
-
-- [x] Bug修复与优化
-- [x] MVP版本发布
-
----
-
-## 八、版本历史
-
-| 版本 | 日期 | 说明 |
-|------|------|------|
-| MVP 1.0 | 2026-02-20 | 初始版本 - 完整功能实现 |
-| | | - 训练记录功能 |
-| Bugfix | 2026-02-21 | 修复编译错误 |
-| | | - 添加缺失的 table_calendar 依赖 |
-| | | - 修复 Drift Value 类型使用错误 |
-| | | - 修复 TextButtonThemeData 参数错误 |
-| Feature Update | 2026-02-21 | 用户反馈修复 |
-| | | - Today页面: 添加动作名称后即时显示 |
-| | | - Today页面: 检测重复动作名称避免重复添加 |
-| | | - Today页面: Save后显示当天训练记录并可编辑 |
-| | | - Today页面: 删除开始时间显示 |
-| | | - 新增训练部位: Glutes(臀)、Abs(腹)及其中文支持 |
-| | | - 新增部位预设经典动作 |
-| | | - Calendar页面: 支持编辑历史训练记录 |
-| | | - Plan页面: 自定义计划与预设计划合并展示 |
-| Bugfix | 2026-02-21 | Plan页面颜色修复 |
-| | | - 修复自定义计划训练部位统一显示为绿色的bug |
-| | | - 调整颜色增大对比度: Shoulders紫色、Back蓝绿色、Glutes粉红色 |
-| | | - 加深Arms橙色，在浅色主题下更易辨识 |
-| | | - 添加Glutes和Abs部位颜色定义 |
-| Feature Update | 2026-02-21 | Today页面交互优化 |
-| | | - Today页面: 修改显示格式为"部位 → 动作 → sets" |
-| | | - Today页面: Add Sets窗口集成部位和动作选择功能 |
-| | | - 用户可在Add Sets时选择部位、动作并输入重量和次数 |
-| Feature Update | 2026-02-21 | Today和Calendar页面显示优化 |
-| | | - Today页面: 保存session后显示当天训练记录 |
-| | | - Calendar页面: 训练内容作为标题，时间放次要位置 |
-| | | - Today页面: 已保存的训练记录显示训练内容作为标题 |
-| Feature Update | 2026-02-21 | Today和Calendar页面UI优化 |
-| | | - Today页面: 去掉顶部重复的Today标题 |
-| | | - Today页面: 卡片格式改为"部位(大字体左侧) + 时间(灰色小字体右侧)"换行显示动作和组数 |
-| | | - Calendar页面: 同样的卡片格式，可点击展开查看详情和编辑 |
-| Feature Update | 2026-02-21 | Today页面交互优化 |
-| | | - 点击New Session后直接弹出Add Exercise窗口 |
-| | | - 删除Start time显示和Add exercise按钮（在ActiveWorkoutView中） |
-| | | - 删除Save按钮，添加动作后自动保存到session |
-| Feature Update | 2026-02-21 | 部位和动作数据修复 |
-| | | - 添加Glutes和Abs训练部位 |
-| | | - 添加预设训练动作（每个部位4-5个动作） |
-| | | - 修复add exercise保存后刷新sessions列表 |
-| | | - 放大Add Exercise页面部位选择标题字体 |
-| Feature Update | 2026-02-21 | Today和Calendar页面功能增强 |
-| | | - Calendar页按训练项目展示，可展开查看详情和编辑 |
-| | | - Today页添加"完成"按钮，返回主界面 |
-| | | - 优化session逻辑：一小时内新建session自动归入同一session |
-| | | - 添加currentSession和done本地化字符串 |
-| Bugfix | 2026-02-21 | 修复本地化字符串缺失导致的编译错误 |
-| | | - 添加currentSession和done键到app_en.arb和app_zh.arb |
-| Feature Update | 2026-02-21 | Calendar页面训练记录显示优化 |
-| | | - Calendar页点击日期显示的训练记录改为彩色框形式展示部位（与Plan页面相同） |
-| | | - 动作和组数信息显示在彩色框后面 |
-| | | - 时间用灰色小字号显示在右侧 |
-| | | - 点击记录项弹出独立Details窗口查看训练详情 |
-| | | - Details窗口内允许编辑训练信息（动作名称、添加/编辑/删除组数） |
-| | | - 新增TrainingDetailsDialog组件 |
-| | | - 新增workoutDetails和saved本地化字符串 |
-| Feature Update | 2026-02-21 | Today页面布局优化 |
-| | | - 改为层级式布局：Session为大栏目，包含多个训练项目次级栏目 |
-| | | - 每栏首行左侧用较大黑色字体显示训练部位名称 |
-| | | - 每栏首行右侧用较小灰色字体显示时间 |
-| | | - 第二行显示动作名称和组数（绿色实色框样式） |
-| | | - Analysis页面休息时间显示优化 |
-| | | - 部位休息时间从精确到天改为精确到小时 |
-| | | - 格式为 "x days x hours"，例如 "1 days 5 hours" |
-| Feature Update | 2026-02-21 | Today页面功能增强和Bug修复 |
-| | | - Today页点击训练项目弹出Details窗口（与Calendar相同） |
-| | | - Details窗口内允许编辑训练部位、动作和组数 |
-| | | - 修复新建部位/动作后不立即显示的bug |
-| | | - 修复添加session后不立即显示的bug |
-|| Feature Update | 2026-02-21 | Plan页面新建自定义计划交互优化 |
-| | | - 新建自定义plan填写名称和周期后点击Save，自动弹出设置窗口 |
-| | | - 设置窗口左侧显示Day列表，右侧显示对应训练部位/休息 |
-| | | - 点击任意Day可快速设置训练部位或休息日 |
-| | | - 训练部位以彩色框显示，休息以灰色框显示 |
-| | | - 完成后点击Done自动选中该新建计划 |
-| Code Optimization | 2026-02-21 | 代码简化与去冗余 |
-| | | - 抽取_getMuscleGroupByName为共享工具函数 (muscle_group_helper.dart) |
-| | | - 合并ExportService和BackupService的重复代码 (-80行) |
-| | | - 删除未使用的CalculateVolumeUseCase provider |
-| | | - 为预留的SyncService添加注释说明 |
-| | | - 消除跨文件重复代码约95行 |
-| | | - 创建Entity基类 (base_entity.dart) 供未来使用 |
-| | | - 创建Theme配置辅助类 (app_theme_config.dart) 供未来使用 |
-| Code Optimization | 2026-02-21 | Theme代码重构 |
-| | | - 整合AppThemeConfig到AppTheme，减少约180行重复代码 |
-| | | - AppTheme现在使用AppThemeConfig的共享方法生成主题数据 |
-| | | - 代码更简洁，主题配置统一管理 |
-| Bugfix | 2026-02-21 | 修复Theme重构导致的编译错误 |
-| | | - AppTheme保留静态常量作为AppThemeConfig的便捷访问器 |
-| | | - 确保向后兼容，不影响其他页面使用AppTheme常量 |
-| Code Optimization | 2026-02-21 | 巨型Page文件深度重构 (第二阶段) |
-| | | - today_page.dart: 1516行 -> 116行 (-92%) |
-| | | - 提取状态类到 workout_session_provider.dart |
-| | | - 提取组件: today_session_view.dart, exercise_card.dart |
-| | | - 提取组件: active_workout_view.dart, add_exercise_sheet.dart |
-| | | - 消除所有中间人委托类，直接使用导入组件 |
-| | | - 项目编译正常，APK已生成 |
-
----
-
-## 九、UI现代化更新 (2026-02-20)
-
-### 9.1 变更概述
-
-本次更新将旧版Workout tracker的UI样式完整融合到新版Muscle Clock应用：
-
-### 9.2 具体变更
-
-1. **底部导航栏调整**
-   - Calendar移至第一位（默认打开界面）
-   - Today移至第二位
-
-2. **全局主题更新**
-   - 采用旧版深色/浅色主题配色方案
-   - 主色: primaryDark (#1A1A1A), primaryLight (#F5F5F5)
-   - 强调色: accent (#00D4AA) 薄荷绿
-   - 卡片色: cardDark (#252525), cardLight (#FAFAFA)
-   - 肌肉颜色映射表（Chest红、Back青、Legs蓝、Shoulders绿、Arms黄）
-
-3. **Calendar页面重构**
-   - 顶部显示 "Muscle Clock" 标题
-   - 支持滑动切换月份
-   - 日历带肌肉颜色标记
-   - 选中日期下方显示训练内容
-
-4. **Plan页面重构**
-   - 训练计划选择器（内置PPL、Upper/Lower、Bro Split模板）
-   - 彩色训练部位框表示不同肌肉
-   - 7天训练计划可视化展示
-   - 支持自定义训练计划
-
-5. **默认训练部位**
-   - 首次启动自动初始化5个默认部位：Chest、Back、Legs、Shoulders、Arms
-
-6. **本地化更新**
-   - 添加训练部位、计划模板等翻译键
-   - 支持中英文切换
-
----
-
-## 十、全局优化进度 (2026-02-21)
-
-### 10.1 架构优化 (Phase 1)
-
-| 任务 | 状态 | 说明 |
-|------|------|------|
-| 创建 PlanRepository | ✅ 完成 | 消除 plan_page.dart 的 6 处 DB 直接访问 |
-| 创建 SessionRepository | ✅ 完成 | 消除 calendar_page.dart 的 5 处 DB 直接访问 |
-| 迁移 analysis_page.dart | ✅ 完成 | 使用 SessionRepository 消除 DB 访问 |
-
-### 10.2 巨型文件拆分 (Phase 2)
-
-| 文件 | 原始行数 | 当前行数 | 减少 |
-|------|---------|---------|------|
-| plan_page.dart | 1173 | 638 | -535 (-46%) |
-| calendar_page.dart | 857 | 448 | -409 (-48%) |
-| training_details_dialog.dart | 580 | 580 | 0 |
-
-**提取的新组件文件**:
-- `widgets/plan/plan_selector.dart` - 计划选择器
-- `widgets/plan/custom_plan_day_item.dart` - 自定义计划日项
-- `widgets/plan/plan_details_widget.dart` - 计划详情组件
-- `widgets/calendar/exercise_record_card.dart` - 训练记录卡片
-
-**删除的死代码**:
-- calendar_page.dart: 移除未使用的 `_SessionCard` (~230行)
-- calendar_page.dart: 移除未使用的 `_ExerciseChip` (~50行)
-- calendar_page.dart: 移除未使用的 `_recordsProvider`, `_exerciseProvider`
-
-### 10.3 量化对比
-
-| 指标 | 优化前 | 优化后 |
-|-----|-------|-------|
-| UI ↔ DB 直接耦合 | 9 处 | 0 处 |
-| plan_page.dart 行数 | 1173 行 | 638 行 |
-| calendar_page.dart 行数 | 857 行 | 448 行 |
-
-### 10.4 待完成项
-
-- [ ] 继续拆分 plan_page.dart (_PlanSetupDialog 还需提取)
-- [ ] 继续拆分 calendar_page.dart (_DayDetailCard, _ExerciseRecordsList 还需提取)
-- [ ] 拆分 training_details_dialog.dart
-- [ ] Phase 3: Entity 代码复用 (BaseEntity + mixin)
-- [ ] Phase 4: 通用 AsyncValue Builder 组件
+| 版本 | 日期 | 类型 | 说明 |
+|------|------|------|------|
+| **v1.2.1** | 2026-02-21 | **Performance** | **性能优化**<br>- **N+1 查询修复**: 在 `database.dart` 添加 JOIN 聚合查询方法，重构 `exercise_records_list.dart` 和 `day_detail_card.dart` 使用批量查询，查询次数从 32+ 次降至 2-3 次。<br>- **日历构建优化**: 在 `providers.dart` 添加 `sessionsByDateProvider` 索引 Provider，将日历查找复杂度从 O(Days × Sessions) 降为 O(1)。<br>- **依赖清理**: 移除未使用的 `shared_preferences` 依赖，减小包体积。 |
+| **v1.2.0** | 2026-02-21 | **Refactoring** | **全架构重构与代码优化**<br>- **架构分层 (Phase 1)**: 实现 Plan/Session Repository 模式，UI层彻底解耦数据库。<br>- **大文件拆分 (Phase 2)**: 重构 `plan_page` (-82%), `calendar_page` (-72%), `today_page` (-92%)，提取了 `plan_selector`, `day_detail_card`, `active_workout_view` 等10+个独立组件。<br>- **代码复用 (Phase 3/4)**: 封装 `entity_mixins.dart` (JSON序列化), `AsyncValueBuilder` (Provider简化), `AppThemeConfig` (主题配置)。<br>- **清理**: 删除冗余代码，合并 Export/Backup 服务，移除死代码约 400 行。 |
+| **v1.1.0** | 2026-02-21 | **Feature** | **核心功能增强与体验优化**<br>- **数据**: 新增 Glutes (臀) / Abs (腹) 部位及其中文支持，内置预设经典动作。<br>- **Today页面**: 优化卡片视觉（层级式布局，主次分明）；简化交互流程（New Session 直接添加动作，自动保存，一键完成）；支持点击条目查看/编辑详情。<br>- **Calendar页面**: 统一卡片视觉风格；支持点击日期展开查看及编辑历史记录；优化热力图逻辑。<br>- **Plan页面**: 优化自定义计划创建流程，新增可视化设置弹窗（支持颜色标记部位）。<br>- **Analysis**: 恢复时间显示精确度提升至小时 (Days + Hours)。 |
+| | 2026-02-21 | **Bugfix** | **稳定性与细节修复**<br>- **编译/运行**: 修复 table_calendar 依赖及 Drift 类型错误；修复 Theme 重构后的兼容性问题。<br>- **UI/UX**: 修复 Plan 页面颜色对比度问题；优化字体大小与颜色规范。<br>- **逻辑**: 修复新建项目刷新延迟；检测并阻止重复动作名称；修复 Session 归组逻辑。<br>- **国际化**: 补全缺失的中英文翻译键值。 |
+| **v1.0.0** | 2026-02-20 | **MVP** | **初始版本**<br>- 基础功能上线：训练记录 (Today)、日历视图 (Calendar)、数据分析 (Analysis)、计划管理 (Plan)。 |

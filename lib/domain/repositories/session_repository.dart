@@ -88,4 +88,19 @@ class SessionRepository {
 
   Future<int> deleteSetsByExerciseRecord(String exerciseRecordId) =>
       _db.deleteSetsByExerciseRecord(exerciseRecordId);
+
+  // ===== JOIN Query Methods for Performance Optimization =====
+
+  /// Get all exercise records with exercise and bodyPart data for a session in one query
+  Future<List<ExerciseRecordWithDetails>> getSessionExerciseRecordsWithDetails(String sessionId) =>
+      _db.getSessionExerciseRecordsWithDetails(sessionId);
+
+  /// Get all sets for multiple exercise records in one query
+  Future<Map<String, List<SetRecord>>> getSetsByExerciseRecordIds(List<String> exerciseRecordIds) =>
+      _db.getSetsByExerciseRecordIds(exerciseRecordIds);
+
+  /// Get all details for multiple sessions in optimized way
+  Future<Map<String, List<ExerciseRecordWithDetails>>> getMultipleSessionsExerciseRecordsWithDetails(
+          List<String> sessionIds) =>
+      _db.getMultipleSessionsExerciseRecordsWithDetails(sessionIds);
 }

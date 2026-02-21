@@ -79,6 +79,19 @@ class PlanItems extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+// Data class for JOIN queries
+class ExerciseRecordWithDetails {
+  final ExerciseRecord record;
+  final Exercise exercise;
+  final BodyPart bodyPart;
+  
+  ExerciseRecordWithDetails({
+    required this.record,
+    required this.exercise,
+    required this.bodyPart,
+  });
+}
+
 // ============ Database ============
 
 @DriftDatabase(tables: [
@@ -245,6 +258,69 @@ class AppDatabase extends _$AppDatabase {
   
   Future<int> deletePlanItemsByPlan(String planId) =>
       (delete(planItems)..where((t) => t.planId.equals(planId))).go();
+
+  // ============ JOIN Queries for Performance Optimization ============
+  
+  /// Get all exercise records with exercise and bodyPart data for a session in one query
+  /// This eliminates N+1 query problem
+  Future<List<ExerciseRecordWithDetails>> getSessionExerciseRecordsWithDetails(String sessionId) async {
+    final query = select(exerciseRecords).join([
+      innerJoin(exercises, exercises.id.equalsExp(exerciseRecords.exerciseId)),
+      innerJoin(bodyParts, bodyParts.id.equalsExp(exercises.bodyPartId)),
+    ])
+      ..where(exerciseRecords.sessionId.equals(sessionId));
+    
+    final rows = await query.get();
+    
+    return rows.map((row) {
+      return ExerciseRecordWithDetails(
+        record: row.readTable(exerciseRecords),
+        exercise: row.readTable(exercises),
+        bodyPart: row.readTable(bodyParts),
+      );
+    }).toList();
+  }
+  
+  /// Get all sets for multiple exercise records in one query
+  Future<Map<String, List<SetRecord>>> getSetsByExerciseRecordIds(List<String> exerciseRecordIds) async {
+    if (exerciseRecordIds.isEmpty) return {};
+    
+    final records = await (select(setRecords)
+      ..where((t) => t.exerciseRecordId.isIn(exerciseRecordIds))
+      ..orderBy([(t) => OrderingTerm.asc(t.orderIndex)]))
+      .get();
+    
+    final Map<String, List<SetRecord>> result = {};
+    for (final record in records) {
+      result.putIfAbsent(record.exerciseRecordId, () => []).add(record);
+    }
+    return result;
+  }
+  
+  /// Get all details for multiple sessions in optimized way
+  Future<Map<String, List<ExerciseRecordWithDetails>>> getMultipleSessionsExerciseRecordsWithDetails(
+      List<String> sessionIds) async {
+    if (sessionIds.isEmpty) return {};
+    
+    final query = select(exerciseRecords).join([
+      innerJoin(exercises, exercises.id.equalsExp(exerciseRecords.exerciseId)),
+      innerJoin(bodyParts, bodyParts.id.equalsExp(exercises.bodyPartId)),
+    ])
+      ..where(exerciseRecords.sessionId.isIn(sessionIds));
+    
+    final rows = await query.get();
+    
+    final Map<String, List<ExerciseRecordWithDetails>> result = {};
+    for (final row in rows) {
+      final record = row.readTable(exerciseRecords);
+      result.putIfAbsent(record.sessionId, () => []).add(ExerciseRecordWithDetails(
+        record: record,
+        exercise: row.readTable(exercises),
+        bodyPart: row.readTable(bodyParts),
+      ));
+    }
+    return result;
+  }
 
   // ============ Statistics Queries ============
   

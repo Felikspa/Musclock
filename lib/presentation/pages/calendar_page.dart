@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:intl/intl.dart';
-import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/database/database.dart';
-import '../../domain/entities/exercise_record_with_session.dart';
-import '../../domain/repositories/session_repository.dart';
 import '../providers/providers.dart';
-import '../widgets/calendar/exercise_record_card.dart';
+import '../widgets/calendar/day_detail_card.dart';
 
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key});
@@ -172,7 +167,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                           s.startTime.day == _selectedDay!.day;
                     }).toList();
                     
-                    return _DayDetailCard(
+                    return DayDetailCard(
                       date: _selectedDay!,
                       sessions: daySessions,
                       isDark: isDark,
@@ -191,258 +186,42 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   Widget _buildCalendarDay(BuildContext context, DateTime day, {bool isToday = false, bool isSelected = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sessionsAsync = ref.watch(sessionsProvider);
+    final sessionsByDate = ref.watch(sessionsByDateProvider);
     
-    return sessionsAsync.when(
-      data: (sessions) {
-        final daySessions = sessions.where((s) {
-          return s.startTime.year == day.year &&
-              s.startTime.month == day.month &&
-              s.startTime.day == day.day;
-        }).toList();
-        
-        final hasWorkout = daySessions.isNotEmpty;
-        
-        // Get primary muscle group color
-        Color? backgroundColor;
-        if (hasWorkout && daySessions.isNotEmpty) {
-          // Get exercises for this session to find muscle groups
-          backgroundColor = AppTheme.accent.withOpacity(0.3);
-        }
-        
-        return Container(
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: isSelected 
-                ? AppTheme.accent 
-                : backgroundColor ?? Colors.transparent,
-            shape: BoxShape.circle,
-            border: isToday && !isSelected
-                ? Border.all(color: AppTheme.accent, width: 1)
-                : null,
-          ),
-          child: Center(
-            child: Text(
-              '${day.day}',
-              style: TextStyle(
-                color: isSelected 
-                    ? AppTheme.primaryDark 
-                    : isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-        );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, _) => const SizedBox.shrink(),
-    );
-  }
-}
-
-class _DayDetailCard extends ConsumerWidget {
-  final DateTime date;
-  final List<WorkoutSession> sessions;
-  final bool isDark;
-
-  const _DayDetailCard({
-    required this.date,
-    required this.sessions,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final isToday = DateUtils.isSameDay(date, DateTime.now());
-    final dayFormat = DateFormat('EEEE, MMM d');
+    // Normalize the day to date only (remove time)
+    final normalizedDay = DateTime(day.year, day.month, day.day);
+    final daySessions = sessionsByDate[normalizedDay] ?? [];
+    final hasWorkout = daySessions.isNotEmpty;
+    
+    // Get primary muscle group color
+    Color? backgroundColor;
+    if (hasWorkout && daySessions.isNotEmpty) {
+      backgroundColor = AppTheme.accent.withOpacity(0.3);
+    }
     
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.cardDark : AppTheme.cardLight,
-        borderRadius: BorderRadius.circular(12),
-        border: isToday ? Border.all(color: AppTheme.accent, width: 1) : null,
+        color: isSelected 
+            ? AppTheme.accent 
+            : backgroundColor ?? Colors.transparent,
+        shape: BoxShape.circle,
+        border: isToday && !isSelected
+            ? Border.all(color: AppTheme.accent, width: 1)
+            : null,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isToday ? l10n.today : dayFormat.format(date),
-                    style: TextStyle(
-                      color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (sessions.isNotEmpty)
-                    _buildMuscleGroupsText(context, ref),
-                ],
-              ),
-              if (isToday && sessions.isEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accent.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    l10n.rest,
-                    style: const TextStyle(
-                      color: AppTheme.accent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-            ],
+      child: Center(
+        child: Text(
+          '${day.day}',
+          style: TextStyle(
+            color: isSelected 
+                ? AppTheme.primaryDark 
+                : isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+            fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
           ),
-          const SizedBox(height: 16),
-          if (sessions.isNotEmpty)
-            Expanded(
-              child: _ExerciseRecordsList(
-                sessions: sessions,
-                isDark: isDark,
-                l10n: l10n,
-              ),
-            )
-          else
-            Expanded(
-              child: Center(
-                child: Text(
-                  l10n.noSessions,
-                  style: TextStyle(
-                    color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
-
-  Widget _buildMuscleGroupsText(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<List<String>>(
-      future: _getMuscleGroupsForSessions(ref),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return Text(
-          snapshot.data!.join(' + '),
-          style: const TextStyle(
-            color: AppTheme.accent,
-            fontSize: 12,
-          ),
-        );
-      },
-    );
-  }
-
-  Future<List<String>> _getMuscleGroupsForSessions(WidgetRef ref) async {
-    final repo = ref.read(sessionRepositoryProvider);
-    final muscleNames = <String>[];
-    
-    for (final session in sessions) {
-      final records = await repo.getRecordsBySession(session.id);
-      for (final record in records) {
-        final exercise = await repo.getExerciseById(record.exerciseId);
-        if (exercise != null) {
-          final bodyPart = await repo.getBodyPartById(exercise.bodyPartId);
-          if (bodyPart != null && !muscleNames.contains(bodyPart.name)) {
-            muscleNames.add(bodyPart.name);
-          }
-        }
-      }
-    }
-    return muscleNames;
-  }
 }
 
-// Display all exercise records from all sessions for a day
-class _ExerciseRecordsList extends ConsumerWidget {
-  final List<WorkoutSession> sessions;
-  final bool isDark;
-  final AppLocalizations l10n;
-
-  const _ExerciseRecordsList({
-    required this.sessions,
-    required this.isDark,
-    required this.l10n,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(sessionRepositoryProvider);
-
-    return FutureBuilder<List<ExerciseRecordWithSession>>(
-      future: _getAllExerciseRecords(repo),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final exerciseRecords = snapshot.data!;
-        
-        if (exerciseRecords.isEmpty) {
-          return Center(
-            child: Text(
-              l10n.noData,
-              style: TextStyle(
-                color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-              ),
-            ),
-          );
-        }
-
-        // Group by exercise for display
-        return ListView.builder(
-          itemCount: exerciseRecords.length,
-          itemBuilder: (context, index) {
-            return ExerciseRecordCard(
-              exerciseRecord: exerciseRecords[index],
-              isDark: isDark,
-              l10n: l10n,
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<List<ExerciseRecordWithSession>> _getAllExerciseRecords(SessionRepository repo) async {
-    final List<ExerciseRecordWithSession> allRecords = [];
-
-    for (final session in sessions) {
-      final records = await repo.getRecordsBySession(session.id);
-      for (final record in records) {
-        final exercise = await repo.getExerciseById(record.exerciseId);
-        if (exercise != null) {
-          final bodyPart = await repo.getBodyPartById(exercise.bodyPartId);
-          final sets = await repo.getSetsByExerciseRecord(record.id);
-          allRecords.add(ExerciseRecordWithSession(
-            record: record,
-            session: session,
-            exercise: exercise,
-            bodyPart: bodyPart,
-            sets: sets,
-          ));
-        }
-      }
-    }
-
-    // Sort by session start time
-    allRecords.sort((a, b) => a.session.startTime.compareTo(b.session.startTime));
-    
-    return allRecords;
-  }
-}

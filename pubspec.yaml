@@ -25,7 +25,6 @@ dependencies:
   # Utilities
   uuid: ^4.2.0
   intl: ^0.20.2
-  shared_preferences: ^2.2.0
   share_plus: ^7.2.0
   
   # Icons
