@@ -6,6 +6,8 @@ import '../../domain/usecases/calculate_frequency.dart';
 // import '../../domain/usecases/calculate_volume.dart'; // Not currently used
 import '../../data/services/export_service.dart';
 import '../../data/services/backup_service.dart';
+import '../../domain/repositories/plan_repository.dart';
+import '../../domain/repositories/session_repository.dart';
 
 // Database Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -38,6 +40,15 @@ final backupServiceProvider = Provider<BackupService>((ref) {
   return BackupService(ref.watch(databaseProvider));
 });
 
+// Repository Providers
+final planRepositoryProvider = Provider<PlanRepository>((ref) {
+  return PlanRepository(ref.watch(databaseProvider));
+});
+
+final sessionRepositoryProvider = Provider<SessionRepository>((ref) {
+  return SessionRepository(ref.watch(databaseProvider));
+});
+
 // Stream Providers
 final bodyPartsProvider = StreamProvider<List<BodyPart>>((ref) {
   return ref.watch(databaseProvider).watchAllBodyParts();
@@ -53,6 +64,22 @@ final sessionsProvider = StreamProvider<List<WorkoutSession>>((ref) {
 
 final plansProvider = StreamProvider<List<TrainingPlan>>((ref) {
   return ref.watch(databaseProvider).watchAllPlans();
+});
+
+// Plan-specific providers
+final customPlanByNameProvider = Provider.family<TrainingPlan?, String>((ref, planName) {
+  final plansAsync = ref.watch(plansProvider);
+  return plansAsync.when(
+    data: (plans) {
+      try {
+        return plans.firstWhere((p) => p.name == planName);
+      } catch (_) {
+        return null;
+      }
+    },
+    loading: () => null,
+    error: (_, __) => null,
+  );
 });
 
 // Settings Providers - Use Flutter's ThemeMode

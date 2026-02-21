@@ -369,6 +369,13 @@ abstract class SyncService {
 | Bugfix | 2026-02-21 | 修复Theme重构导致的编译错误 |
 | | | - AppTheme保留静态常量作为AppThemeConfig的便捷访问器 |
 | | | - 确保向后兼容，不影响其他页面使用AppTheme常量 |
+| Code Optimization | 2026-02-21 | 巨型Page文件深度重构 (第二阶段) |
+| | | - today_page.dart: 1516行 -> 116行 (-92%) |
+| | | - 提取状态类到 workout_session_provider.dart |
+| | | - 提取组件: today_session_view.dart, exercise_card.dart |
+| | | - 提取组件: active_workout_view.dart, add_exercise_sheet.dart |
+| | | - 消除所有中间人委托类，直接使用导入组件 |
+| | | - 项目编译正常，APK已生成 |
 
 ---
 
@@ -409,3 +416,50 @@ abstract class SyncService {
 6. **本地化更新**
    - 添加训练部位、计划模板等翻译键
    - 支持中英文切换
+
+---
+
+## 十、全局优化进度 (2026-02-21)
+
+### 10.1 架构优化 (Phase 1)
+
+| 任务 | 状态 | 说明 |
+|------|------|------|
+| 创建 PlanRepository | ✅ 完成 | 消除 plan_page.dart 的 6 处 DB 直接访问 |
+| 创建 SessionRepository | ✅ 完成 | 消除 calendar_page.dart 的 5 处 DB 直接访问 |
+| 迁移 analysis_page.dart | ✅ 完成 | 使用 SessionRepository 消除 DB 访问 |
+
+### 10.2 巨型文件拆分 (Phase 2)
+
+| 文件 | 原始行数 | 当前行数 | 减少 |
+|------|---------|---------|------|
+| plan_page.dart | 1173 | 638 | -535 (-46%) |
+| calendar_page.dart | 857 | 448 | -409 (-48%) |
+| training_details_dialog.dart | 580 | 580 | 0 |
+
+**提取的新组件文件**:
+- `widgets/plan/plan_selector.dart` - 计划选择器
+- `widgets/plan/custom_plan_day_item.dart` - 自定义计划日项
+- `widgets/plan/plan_details_widget.dart` - 计划详情组件
+- `widgets/calendar/exercise_record_card.dart` - 训练记录卡片
+
+**删除的死代码**:
+- calendar_page.dart: 移除未使用的 `_SessionCard` (~230行)
+- calendar_page.dart: 移除未使用的 `_ExerciseChip` (~50行)
+- calendar_page.dart: 移除未使用的 `_recordsProvider`, `_exerciseProvider`
+
+### 10.3 量化对比
+
+| 指标 | 优化前 | 优化后 |
+|-----|-------|-------|
+| UI ↔ DB 直接耦合 | 9 处 | 0 处 |
+| plan_page.dart 行数 | 1173 行 | 638 行 |
+| calendar_page.dart 行数 | 857 行 | 448 行 |
+
+### 10.4 待完成项
+
+- [ ] 继续拆分 plan_page.dart (_PlanSetupDialog 还需提取)
+- [ ] 继续拆分 calendar_page.dart (_DayDetailCard, _ExerciseRecordsList 还需提取)
+- [ ] 拆分 training_details_dialog.dart
+- [ ] Phase 3: Entity 代码复用 (BaseEntity + mixin)
+- [ ] Phase 4: 通用 AsyncValue Builder 组件

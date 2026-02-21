@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../data/database/database.dart';
+import '../../domain/repositories/session_repository.dart';
 import '../providers/providers.dart';
 
 class AnalysisPage extends ConsumerWidget {
@@ -213,9 +214,9 @@ class _BodyPartStatCard extends ConsumerWidget {
             sessionsAsync.when(
               data: (sessions) {
                 // Get sessions containing this body part
-                final db = ref.read(databaseProvider);
+                final repo = ref.read(sessionRepositoryProvider);
                 return FutureBuilder(
-                  future: db.getSessionsByBodyPart(bodyPart.id),
+                  future: repo.getSessionsByBodyPart(bodyPart.id),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const CircularProgressIndicator();

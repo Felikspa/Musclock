@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/enums/muscle_enum.dart';
-import '../../core/constants/muscle_groups.dart';
 import '../../data/database/database.dart';
 import '../providers/providers.dart';
 import '../widgets/muscle_group_helper.dart';
+import '../widgets/plan/plan_selector.dart';
+import '../widgets/plan/plan_details_widget.dart';
 
 // State provider for selected plan
 final selectedPlanProvider = StateProvider<String>((ref) => 'PPL');
@@ -20,22 +20,6 @@ final allPlanNamesProvider = Provider<List<String>>((ref) {
     data: (customPlans) => [...presetPlans, ...customPlans.map((p) => p.name)],
     loading: () => presetPlans,
     error: (_, __) => presetPlans,
-  );
-});
-
-// Provider to get custom plan by name
-final customPlanByNameProvider = Provider.family<TrainingPlan?, String>((ref, planName) {
-  final plansAsync = ref.watch(plansProvider);
-  return plansAsync.when(
-    data: (plans) {
-      try {
-        return plans.firstWhere((p) => p.name == planName);
-      } catch (_) {
-        return null;
-      }
-    },
-    loading: () => null,
-    error: (_, __) => null,
   );
 });
 
@@ -87,7 +71,7 @@ class _PlanPageState extends ConsumerState<PlanPage> {
                 ),
 
                 // Plan Selector
-                _PlanSelector(
+                PlanSelector(
                   selectedPlan: selectedPlan,
                   onPlanSelected: (plan) {
                     ref.read(selectedPlanProvider.notifier).state = plan;
@@ -100,7 +84,7 @@ class _PlanPageState extends ConsumerState<PlanPage> {
                 // Plan Details
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _PlanDetailsWidget(
+                  child: PlanDetailsWidget(
                     planName: selectedPlan,
                     isDark: isDark,
                     l10n: l10n,
@@ -179,10 +163,10 @@ class _PlanPageState extends ConsumerState<PlanPage> {
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
                 final cycleLength = int.tryParse(cycleLengthController.text) ?? 7;
-                final db = ref.read(databaseProvider);
+                final repo = ref.read(planRepositoryProvider);
                 final planId = DateTime.now().millisecondsSinceEpoch.toString();
 
-                await db.insertPlan(TrainingPlansCompanion.insert(
+                await repo.insertPlan(TrainingPlansCompanion.insert(
                   id: planId,
                   name: nameController.text,
                   cycleLengthDays: cycleLength,
@@ -222,524 +206,6 @@ class _PlanPageState extends ConsumerState<PlanPage> {
   }
 }
 
-class _PlanSelector extends ConsumerWidget {
-  final String selectedPlan;
-  final Function(String) onPlanSelected;
-  final bool isDark;
-
-  const _PlanSelector({
-    required this.selectedPlan,
-    required this.onPlanSelected,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final presetPlans = ['PPL', 'Upper/Lower', 'Bro Split'];
-    final plansAsync = ref.watch(plansProvider);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppTheme.cardDark : AppTheme.cardLight,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Select Training Plan',
-            style: TextStyle(
-              color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              // Preset plans
-              ...presetPlans.map((plan) => _PlanChip(
-                plan: plan,
-                isSelected: plan == selectedPlan,
-                onTap: () => onPlanSelected(plan),
-                isDark: isDark,
-                icon: _getPlanIcon(plan),
-              )),
-              // Custom plans
-              ...plansAsync.when(
-                data: (plans) => plans.map((plan) => _PlanChip(
-                  plan: plan.name,
-                  isSelected: plan.name == selectedPlan,
-                  onTap: () => onPlanSelected(plan.name),
-                  isDark: isDark,
-                  icon: Icons.fitness_center,
-                  isCustom: true,
-                )),
-                loading: () => [],
-                error: (_, __) => [],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getPlanIcon(String plan) {
-    switch (plan) {
-      case 'PPL':
-        return Icons.rotate_right;
-      case 'Upper/Lower':
-        return Icons.swap_vert;
-      case 'Bro Split':
-        return Icons.calendar_view_week;
-      default:
-        return Icons.fitness_center;
-    }
-  }
-}
-
-class _PlanChip extends StatelessWidget {
-  final String plan;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final bool isDark;
-  final IconData icon;
-  final bool isCustom;
-
-  const _PlanChip({
-    required this.plan,
-    required this.isSelected,
-    required this.onTap,
-    required this.isDark,
-    required this.icon,
-    this.isCustom = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected 
-              ? AppTheme.accent.withOpacity(0.2) 
-              : isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected 
-                ? AppTheme.accent 
-                : Colors.transparent,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected 
-                  ? AppTheme.accent 
-                  : isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              plan,
-              style: TextStyle(
-                color: isSelected 
-                    ? AppTheme.accent 
-                    : isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                fontSize: 13,
-                fontWeight: isSelected 
-                    ? FontWeight.w600 
-                    : FontWeight.normal,
-              ),
-            ),
-            if (isCustom) ...[
-              const SizedBox(width: 4),
-              Icon(
-                Icons.edit,
-                size: 12,
-                color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PlanDetailsWidget extends ConsumerWidget {
-  final String planName;
-  final bool isDark;
-  final AppLocalizations l10n;
-
-  const _PlanDetailsWidget({
-    required this.planName,
-    required this.isDark,
-    required this.l10n,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Check if it's a preset plan
-    final schedule = WorkoutTemplates.getSchedule(planName);
-    
-    if (schedule != null) {
-      // Preset plan - show schedule
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppTheme.cardDark : AppTheme.cardLight,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$planName Schedule',
-              style: TextStyle(
-                color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ...schedule.entries.map((entry) {
-              final dayOfWeek = entry.key;
-              final muscles = entry.value;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 80,
-                      child: Text(
-                        _getDayName(dayOfWeek),
-                        style: TextStyle(
-                          color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Wrap(
-                        spacing: 8,
-                        children: muscles.map((muscle) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: AppTheme.getMuscleColor(muscle).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              _getMuscleName(muscle, l10n),
-                              style: TextStyle(
-                                color: AppTheme.getMuscleColor(muscle),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      );
-    }
-    
-    // Custom plan - fetch from database
-    final customPlan = ref.watch(customPlanByNameProvider(planName));
-    
-    if (customPlan == null) {
-      return const SizedBox.shrink();
-    }
-    
-    final itemsAsync = ref.watch(_planItemsProvider(customPlan.id));
-    
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppTheme.cardDark : AppTheme.cardLight,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '$planName Schedule',
-                style: TextStyle(
-                  color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                '${customPlan.cycleLengthDays} ${l10n.days}',
-                style: TextStyle(
-                  color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          itemsAsync.when(
-                data: (items) {
-                  if (items.isEmpty) {
-                    return Column(
-                      children: [
-                        Text(
-                          l10n.noData,
-                          style: TextStyle(
-                            color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: () => _showAddPlanItemDialog(context, ref, customPlan.id, customPlan.cycleLengthDays),
-                          icon: const Icon(Icons.add),
-                          label: Text(l10n.addExercise),
-                        ),
-                      ],
-                    );
-                  }
-                  
-                  // Show days with items
-                  return Column(
-                    children: items.map((item) {
-                      return _CustomPlanDayItem(
-                        planItem: item,
-                        isDark: isDark,
-                        l10n: l10n,
-                      );
-                    }).toList(),
-                  );
-                },
-                loading: () => const CircularProgressIndicator(),
-                error: (e, s) => Text('Error: $e'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => _showAddPlanItemDialog(context, ref, customPlan.id, customPlan.cycleLengthDays),
-                icon: const Icon(Icons.add),
-                label: Text('Add Day'),
-              ),
-            ],
-          ),
-        );
-  }
-
-  void _showAddPlanItemDialog(BuildContext context, WidgetRef ref, String planId, int cycleLengthDays) {
-    int selectedDayIndex = 0;
-    final bodyPartsAsync = ref.read(bodyPartsProvider);
-    List<String> selectedBodyPartIds = [];
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Add Training Day'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Day selector
-              Text('Select Day (1-$cycleLengthDays):'),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.remove),
-                    onPressed: selectedDayIndex > 0 
-                        ? () => setState(() => selectedDayIndex--) 
-                        : null,
-                  ),
-                  Text('Day ${selectedDayIndex + 1}'),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: selectedDayIndex < cycleLengthDays - 1 
-                        ? () => setState(() => selectedDayIndex++) 
-                        : null,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Body part selector
-              const Text('Select Body Parts:'),
-              const SizedBox(height: 8),
-              bodyPartsAsync.when(
-                data: (bodyParts) => Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: bodyParts.map((bp) => FilterChip(
-                    label: Text(bp.name),
-                    selected: selectedBodyPartIds.contains(bp.id),
-                    onSelected: (selected) {
-                      setState(() {
-                        if (selected) {
-                          selectedBodyPartIds.add(bp.id);
-                        } else {
-                          selectedBodyPartIds.remove(bp.id);
-                        }
-                      });
-                    },
-                  )).toList(),
-                ),
-                loading: () => const CircularProgressIndicator(),
-                error: (e, s) => Text('Error: $e'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(l10n.cancel),
-            ),
-            FilledButton(
-              onPressed: selectedBodyPartIds.isNotEmpty ? () async {
-                final db = ref.read(databaseProvider);
-                await db.insertPlanItem(PlanItemsCompanion.insert(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  planId: planId,
-                  dayIndex: selectedDayIndex,
-                  bodyPartIds: selectedBodyPartIds.join(','),
-                ));
-                ref.invalidate(_planItemsProvider(planId));
-                if (context.mounted) Navigator.pop(context);
-              } : null,
-              child: Text(l10n.save),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _getDayName(int dayOfWeek) {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    return days[dayOfWeek - 1];
-  }
-
-  String _getMuscleName(MuscleGroup muscle, AppLocalizations l10n) {
-    if (muscle == MuscleGroup.rest) {
-      return l10n.rest;
-    }
-    return muscle.english;
-  }
-}
-
-class _CustomPlanDayItem extends ConsumerWidget {
-  final PlanItem planItem;
-  final bool isDark;
-  final AppLocalizations l10n;
-
-  const _CustomPlanDayItem({
-    required this.planItem,
-    required this.isDark,
-    required this.l10n,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bodyPartIds = planItem.bodyPartIds.split(',').where((s) => s.isNotEmpty).toList();
-    final bodyPartsAsync = ref.watch(bodyPartsProvider);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              'Day ${planItem.dayIndex + 1}',
-              style: TextStyle(
-                color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Expanded(
-            child: bodyPartsAsync.when(
-              data: (bodyParts) {
-                final names = bodyParts
-                    .where((bp) => bodyPartIds.contains(bp.id))
-                    .map((bp) => bp.name)
-                    .toList();
-                
-                if (names.isEmpty) {
-                  return Text(
-                    l10n.rest,
-                    style: TextStyle(
-                      color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                      fontSize: 12,
-                    ),
-                  );
-                }
-                
-                return Wrap(
-                  spacing: 8,
-                  children: names.map((name) {
-                    // Map body part name to MuscleGroup for color
-                    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(name);
-                    final color = AppTheme.getMuscleColor(muscleGroup);
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        name,
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                );
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            onPressed: () async {
-              final db = ref.read(databaseProvider);
-              await db.deletePlanItem(planItem.id);
-              ref.invalidate(_planItemsProvider(planItem.planId));
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-final _planItemsProvider = FutureProvider.family<List<PlanItem>, String>((ref, planId) async {
-  final db = ref.watch(databaseProvider);
-  return db.getPlanItemsByPlan(planId);
-});
-
 class _PlanSetupDialog extends ConsumerStatefulWidget {
   final String planId;
   final String planName;
@@ -774,8 +240,8 @@ class _PlanSetupDialogState extends ConsumerState<_PlanSetupDialog> {
   }
 
   Future<void> _loadExistingItems() async {
-    final db = ref.read(databaseProvider);
-    final existingItems = await db.getPlanItemsByPlan(widget.planId);
+    final repo = ref.read(planRepositoryProvider);
+    final existingItems = await repo.getPlanItemsByPlan(widget.planId);
 
     for (var item in existingItems) {
       if (item.dayIndex < _dayConfigs.length) {
@@ -793,19 +259,19 @@ class _PlanSetupDialogState extends ConsumerState<_PlanSetupDialog> {
   }
 
   Future<void> _saveDayConfig(int dayIndex, List<String> bodyPartIds, bool isRest) async {
-    final db = ref.read(databaseProvider);
+    final repo = ref.read(planRepositoryProvider);
 
     // Remove existing item for this day if any
-    final existingItems = await db.getPlanItemsByPlan(widget.planId);
+    final existingItems = await repo.getPlanItemsByPlan(widget.planId);
     final existingItem = existingItems.where((item) => item.dayIndex == dayIndex).firstOrNull;
 
     if (existingItem != null) {
-      await db.deletePlanItem(existingItem.id);
+      await repo.deletePlanItem(existingItem.id);
     }
 
     // Add new item
     if (!isRest && bodyPartIds.isNotEmpty) {
-      await db.insertPlanItem(PlanItemsCompanion.insert(
+      await repo.insertPlanItem(PlanItemsCompanion.insert(
         id: DateTime.now().millisecondsSinceEpoch.toString() + dayIndex.toString(),
         planId: widget.planId,
         dayIndex: dayIndex,

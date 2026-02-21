@@ -1,0 +1,281 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/database/database.dart';
+import '../providers/providers.dart';
+
+// ============ State Classes ============
+
+/// State for the workout session
+class WorkoutSessionState {
+  final String? sessionId;
+  final DateTime startTime;
+  final List<ExerciseInSession> exercises;
+  final bool isActive;
+
+  WorkoutSessionState({
+    this.sessionId,
+    required this.startTime,
+    this.exercises = const [],
+    this.isActive = false,
+  });
+
+  WorkoutSessionState copyWith({
+    String? sessionId,
+    DateTime? startTime,
+    List<ExerciseInSession>? exercises,
+    bool? isActive,
+  }) {
+    return WorkoutSessionState(
+      sessionId: sessionId ?? this.sessionId,
+      startTime: startTime ?? this.startTime,
+      exercises: exercises ?? this.exercises,
+      isActive: isActive ?? this.isActive,
+    );
+  }
+}
+
+/// Exercise in the current session
+class ExerciseInSession {
+  final String exerciseRecordId;
+  final Exercise exercise;
+  final BodyPart? bodyPart;
+  final List<SetInSession> sets;
+
+  ExerciseInSession({
+    required this.exerciseRecordId,
+    required this.exercise,
+    this.bodyPart,
+    this.sets = const [],
+  });
+
+  ExerciseInSession copyWith({
+    String? exerciseRecordId,
+    Exercise? exercise,
+    BodyPart? bodyPart,
+    List<SetInSession>? sets,
+  }) {
+    return ExerciseInSession(
+      exerciseRecordId: exerciseRecordId ?? this.exerciseRecordId,
+      exercise: exercise ?? this.exercise,
+      bodyPart: bodyPart ?? this.bodyPart,
+      sets: sets ?? this.sets,
+    );
+  }
+}
+
+/// Set in the current session
+class SetInSession {
+  final String setRecordId;
+  final double weight;
+  final int reps;
+  final int orderIndex;
+
+  SetInSession({
+    required this.setRecordId,
+    required this.weight,
+    required this.reps,
+    required this.orderIndex,
+  });
+}
+
+// ============ Provider ============
+
+final workoutSessionProvider = StateNotifierProvider<WorkoutSessionNotifier, WorkoutSessionState>((ref) {
+  return WorkoutSessionNotifier(ref);
+});
+
+// ============ State Notifier ============
+
+class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
+  final Ref _ref;
+
+  WorkoutSessionNotifier(this._ref) : super(WorkoutSessionState(startTime: DateTime.now().toUtc()));
+
+  Future<void> startNewSession() async {
+    final db = _ref.read(databaseProvider);
+    
+    // Check if there's a session within the last hour
+    final now = DateTime.now().toUtc();
+    final oneHourAgo = now.subtract(const Duration(hours: 1));
+    
+    // Get all sessions
+    final allSessions = await db.getAllSessions();
+    
+    // Find a session that started within the last hour
+    WorkoutSession? recentSession;
+    for (final session in allSessions) {
+      if (session.startTime.isAfter(oneHourAgo)) {
+        recentSession = session;
+        break;
+      }
+    }
+    
+    if (recentSession != null) {
+      // Load existing exercises for the recent session
+      final records = await db.getRecordsBySession(recentSession.id);
+      final exercisesInSession = <ExerciseInSession>[];
+      
+      for (final record in records) {
+        final exercise = await db.getExerciseById(record.exerciseId);
+        if (exercise != null) {
+          final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
+          final setRecords = await db.getSetsByExerciseRecord(record.id);
+          final setsInSession = setRecords.map((s) => SetInSession(
+            setRecordId: s.id,
+            weight: s.weight,
+            reps: s.reps,
+            orderIndex: s.orderIndex,
+          )).toList();
+          exercisesInSession.add(ExerciseInSession(
+            exerciseRecordId: record.id,
+            exercise: exercise,
+            bodyPart: bodyPart,
+            sets: setsInSession,
+          ));
+        }
+      }
+      
+      // Reuse the recent session with existing exercises
+      state = WorkoutSessionState(
+        sessionId: recentSession.id,
+        startTime: recentSession.startTime,
+        isActive: true,
+        exercises: exercisesInSession,
+      );
+      return;
+    }
+    
+    // Create new session
+    final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+    
+    await db.insertSession(WorkoutSessionsCompanion.insert(
+      id: sessionId,
+      startTime: now,
+      createdAt: now,
+    ));
+
+    state = WorkoutSessionState(
+      sessionId: sessionId,
+      startTime: now,
+      isActive: true,
+    );
+  }
+
+  Future<void> addExercise(Exercise exercise) async {
+    if (state.sessionId == null) return;
+
+    final db = _ref.read(databaseProvider);
+    final recordId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    await db.insertExerciseRecord(ExerciseRecordsCompanion.insert(
+      id: recordId,
+      sessionId: state.sessionId!,
+      exerciseId: exercise.id,
+    ));
+
+    final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
+
+    final newExercise = ExerciseInSession(
+      exerciseRecordId: recordId,
+      exercise: exercise,
+      bodyPart: bodyPart,
+    );
+
+    state = state.copyWith(
+      exercises: [...state.exercises, newExercise],
+    );
+  }
+
+  Future<void> addSet(int exerciseIndex, double weight, int reps) async {
+    if (state.sessionId == null) return;
+    if (exerciseIndex >= state.exercises.length) return;
+
+    final exerciseInSession = state.exercises[exerciseIndex];
+    final db = _ref.read(databaseProvider);
+    final setId = DateTime.now().millisecondsSinceEpoch.toString();
+    final orderIndex = exerciseInSession.sets.length;
+
+    await db.insertSetRecord(SetRecordsCompanion.insert(
+      id: setId,
+      exerciseRecordId: exerciseInSession.exerciseRecordId,
+      weight: weight,
+      reps: reps,
+      orderIndex: orderIndex,
+    ));
+
+    final newSet = SetInSession(
+      setRecordId: setId,
+      weight: weight,
+      reps: reps,
+      orderIndex: orderIndex,
+    );
+
+    final updatedExercises = [...state.exercises];
+    updatedExercises[exerciseIndex] = exerciseInSession.copyWith(
+      sets: [...exerciseInSession.sets, newSet],
+    );
+
+    state = state.copyWith(exercises: updatedExercises);
+  }
+
+  Future<void> deleteSet(int exerciseIndex, int setIndex) async {
+    if (exerciseIndex >= state.exercises.length) return;
+
+    final exerciseInSession = state.exercises[exerciseIndex];
+    if (setIndex >= exerciseInSession.sets.length) return;
+
+    final setToDelete = exerciseInSession.sets[setIndex];
+    final db = _ref.read(databaseProvider);
+
+    await db.deleteSetRecord(setToDelete.setRecordId);
+
+    final updatedSets = [...exerciseInSession.sets];
+    updatedSets.removeAt(setIndex);
+
+    // Update order indices
+    for (var i = 0; i < updatedSets.length; i++) {
+      if (updatedSets[i].orderIndex != i) {
+        final newSet = SetInSession(
+          setRecordId: updatedSets[i].setRecordId,
+          weight: updatedSets[i].weight,
+          reps: updatedSets[i].reps,
+          orderIndex: i,
+        );
+        updatedSets[i] = newSet;
+      }
+    }
+
+    final updatedExercises = [...state.exercises];
+    updatedExercises[exerciseIndex] = exerciseInSession.copyWith(sets: updatedSets);
+
+    state = state.copyWith(exercises: updatedExercises);
+  }
+
+  Future<void> deleteExercise(int exerciseIndex) async {
+    if (exerciseIndex >= state.exercises.length) return;
+
+    final exerciseInSession = state.exercises[exerciseIndex];
+    final db = _ref.read(databaseProvider);
+
+    // Delete all sets
+    await db.deleteSetsByExerciseRecord(exerciseInSession.exerciseRecordId);
+    // Delete exercise record
+    await db.deleteExerciseRecord(exerciseInSession.exerciseRecordId);
+
+    final updatedExercises = [...state.exercises];
+    updatedExercises.removeAt(exerciseIndex);
+
+    state = state.copyWith(exercises: updatedExercises);
+  }
+
+  Future<void> endSession() async {
+    if (state.sessionId != null) {
+      // Delete empty session if no exercises
+      if (state.exercises.isEmpty) {
+        final db = _ref.read(databaseProvider);
+        await db.deleteSession(state.sessionId!);
+      }
+    }
+
+    state = WorkoutSessionState(startTime: DateTime.now().toUtc());
+  }
+}

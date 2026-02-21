@@ -6,9 +6,9 @@ import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/database/database.dart';
 import '../../domain/entities/exercise_record_with_session.dart';
+import '../../domain/repositories/session_repository.dart';
 import '../providers/providers.dart';
-import '../widgets/training_details_dialog.dart';
-import '../widgets/muscle_group_helper.dart';
+import '../widgets/calendar/exercise_record_card.dart';
 
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key});
@@ -30,7 +30,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sessionsAsync = ref.watch(sessionsProvider);
 
@@ -350,15 +349,15 @@ class _DayDetailCard extends ConsumerWidget {
   }
 
   Future<List<String>> _getMuscleGroupsForSessions(WidgetRef ref) async {
-    final db = ref.read(databaseProvider);
+    final repo = ref.read(sessionRepositoryProvider);
     final muscleNames = <String>[];
     
     for (final session in sessions) {
-      final records = await db.getRecordsBySession(session.id);
+      final records = await repo.getRecordsBySession(session.id);
       for (final record in records) {
-        final exercise = await db.getExerciseById(record.exerciseId);
+        final exercise = await repo.getExerciseById(record.exerciseId);
         if (exercise != null) {
-          final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
+          final bodyPart = await repo.getBodyPartById(exercise.bodyPartId);
           if (bodyPart != null && !muscleNames.contains(bodyPart.name)) {
             muscleNames.add(bodyPart.name);
           }
@@ -383,10 +382,10 @@ class _ExerciseRecordsList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final db = ref.watch(databaseProvider);
+    final repo = ref.watch(sessionRepositoryProvider);
 
     return FutureBuilder<List<ExerciseRecordWithSession>>(
-      future: _getAllExerciseRecords(db),
+      future: _getAllExerciseRecords(repo),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -409,7 +408,7 @@ class _ExerciseRecordsList extends ConsumerWidget {
         return ListView.builder(
           itemCount: exerciseRecords.length,
           itemBuilder: (context, index) {
-            return _ExerciseRecordCard(
+            return ExerciseRecordCard(
               exerciseRecord: exerciseRecords[index],
               isDark: isDark,
               l10n: l10n,
@@ -420,16 +419,16 @@ class _ExerciseRecordsList extends ConsumerWidget {
     );
   }
 
-  Future<List<ExerciseRecordWithSession>> _getAllExerciseRecords(AppDatabase db) async {
+  Future<List<ExerciseRecordWithSession>> _getAllExerciseRecords(SessionRepository repo) async {
     final List<ExerciseRecordWithSession> allRecords = [];
 
     for (final session in sessions) {
-      final records = await db.getRecordsBySession(session.id);
+      final records = await repo.getRecordsBySession(session.id);
       for (final record in records) {
-        final exercise = await db.getExerciseById(record.exerciseId);
+        final exercise = await repo.getExerciseById(record.exerciseId);
         if (exercise != null) {
-          final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
-          final sets = await db.getSetsByExerciseRecord(record.id);
+          final bodyPart = await repo.getBodyPartById(exercise.bodyPartId);
+          final sets = await repo.getSetsByExerciseRecord(record.id);
           allRecords.add(ExerciseRecordWithSession(
             record: record,
             session: session,
@@ -447,410 +446,3 @@ class _ExerciseRecordsList extends ConsumerWidget {
     return allRecords;
   }
 }
-
-// Individual exercise record card with color chips and details dialog
-class _ExerciseRecordCard extends StatelessWidget {
-  final ExerciseRecordWithSession exerciseRecord;
-  final bool isDark;
-  final AppLocalizations l10n;
-
-  const _ExerciseRecordCard({
-    required this.exerciseRecord,
-    required this.isDark,
-    required this.l10n,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final timeFormat = DateFormat('HH:mm');
-    final exercise = exerciseRecord;
-    final bodyPartName = exercise.bodyPart?.name ?? '';
-    final exerciseName = exercise.exercise.name;
-
-    // Get muscle color
-    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
-    final muscleColor = AppTheme.getMuscleColor(muscleGroup);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: InkWell(
-        onTap: () {
-          // Show details dialog instead of expanding
-          showDialog(
-            context: context,
-            builder: (context) => TrainingDetailsDialog(
-              exerciseRecord: exerciseRecord,
-              isDark: isDark,
-              l10n: l10n,
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Body part color chip
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: muscleColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  bodyPartName,
-                  style: TextStyle(
-                    color: muscleColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Exercise name and sets info
-              Expanded(
-                child: exercise.sets.isNotEmpty
-                    ? Text(
-                        '$exerciseName • ${exercise.sets.length} sets',
-                        style: TextStyle(
-                          color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    : Text(
-                        exerciseName,
-                        style: TextStyle(
-                          color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-              ),
-              const SizedBox(width: 8),
-              // Time on the right
-              Text(
-                timeFormat.format(exercise.session.startTime),
-                style: TextStyle(
-                  color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SessionCard extends ConsumerStatefulWidget {
-  final WorkoutSession session;
-  final bool isDark;
-  final AppLocalizations l10n;
-
-  const _SessionCard({
-    required this.session,
-    required this.isDark,
-    required this.l10n,
-  });
-
-  @override
-  ConsumerState<_SessionCard> createState() => _SessionCardState();
-}
-
-class _SessionCardState extends ConsumerState<_SessionCard> {
-  bool _isExpanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final recordsAsync = ref.watch(_recordsProvider(widget.session.id));
-    final timeFormat = DateFormat('HH:mm');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: recordsAsync.when(
-        data: (records) => _buildContent(context, records, timeFormat),
-        loading: () => const Padding(
-          padding: EdgeInsets.all(12),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-        error: (e, s) => Padding(
-          padding: const EdgeInsets.all(12),
-          child: Text('Error: $e'),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContent(BuildContext context, List<ExerciseRecord> records, DateFormat timeFormat) {
-    return FutureBuilder<_SessionDisplayDataCalendar>(
-      future: _getSessionDisplayData(records),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Padding(
-            padding: EdgeInsets.all(12),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final data = snapshot.data!;
-
-        return Column(
-          children: [
-            // Clickable header
-            InkWell(
-              onTap: () {
-                setState(() {
-                  _isExpanded = !_isExpanded;
-                });
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header: Body parts on left (large), time on right (small gray)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Main title: body parts
-                        Expanded(
-                          child: Text(
-                            data.bodyParts.isNotEmpty ? data.bodyParts.join(' + ') : widget.l10n.noData,
-                            style: TextStyle(
-                              color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        // Time on right
-                        Text(
-                          timeFormat.format(widget.session.startTime),
-                          style: TextStyle(
-                            color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        // Expand icon
-                        Icon(
-                          _isExpanded ? Icons.expand_less : Icons.expand_more,
-                          size: 18,
-                          color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Expanded content - exercise details
-            if (_isExpanded) ...[
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Exercise details
-                    ...data.exercises.map((exercise) => _buildExerciseItem(context, exercise)),
-                    
-                    const SizedBox(height: 8),
-                    
-                    // Edit button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _editSession(context),
-                        icon: const Icon(Icons.edit, size: 16),
-                        label: Text(widget.l10n.edit),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildExerciseItem(BuildContext context, _ExerciseWithSetsCalendar exercise) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Exercise name
-          Text(
-            exercise.name,
-            style: TextStyle(
-              color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          
-          // Sets - only show if there are sets
-          if (exercise.sets.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Wrap(
-              spacing: 6,
-              runSpacing: 2,
-              children: exercise.sets.map((set) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    '${set.weight}kg x ${set.reps}',
-                    style: TextStyle(
-                      color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                      fontSize: 11,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<_SessionDisplayDataCalendar> _getSessionDisplayData(List<ExerciseRecord> records) async {
-    final db = ref.read(databaseProvider);
-    final Map<String, _ExerciseWithSetsCalendar> exerciseMap = {};
-    final Set<String> bodyParts = {};
-
-    for (final record in records) {
-      final exercise = await db.getExerciseById(record.exerciseId);
-      if (exercise != null) {
-        final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
-        if (bodyPart != null) {
-          bodyParts.add(bodyPart.name);
-        }
-        
-        // Get sets for this record
-        final sets = await db.getSetsByExerciseRecord(record.id);
-        
-        if (exerciseMap.containsKey(exercise.id)) {
-          exerciseMap[exercise.id]!.sets.addAll(sets);
-        } else {
-          exerciseMap[exercise.id] = _ExerciseWithSetsCalendar(
-            name: exercise.name,
-            sets: sets,
-          );
-        }
-      }
-    }
-
-    return _SessionDisplayDataCalendar(
-      bodyParts: bodyParts.toList(),
-      exercises: exerciseMap.values.toList(),
-    );
-  }
-
-  void _editSession(BuildContext context) {
-    // TODO: Navigate to edit session view
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit functionality coming soon')),
-    );
-  }
-}
-
-// Data class for calendar session display
-class _SessionDisplayDataCalendar {
-  final List<String> bodyParts;
-  final List<_ExerciseWithSetsCalendar> exercises;
-
-  _SessionDisplayDataCalendar({
-    required this.bodyParts,
-    required this.exercises,
-  });
-}
-
-class _ExerciseWithSetsCalendar {
-  final String name;
-  final List<SetRecord> sets;
-
-  _ExerciseWithSetsCalendar({
-    required this.name,
-    required this.sets,
-  });
-}
-
-final _recordsProvider = FutureProvider.family<List<ExerciseRecord>, String>((ref, sessionId) async {
-  final db = ref.watch(databaseProvider);
-  return db.getRecordsBySession(sessionId);
-});
-
-class _ExerciseChip extends ConsumerWidget {
-  final String recordId;
-  final bool isDark;
-
-  const _ExerciseChip({
-    required this.recordId,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final recordsAsync = ref.watch(_recordsProvider(recordId));
-
-    return recordsAsync.when(
-      data: (records) {
-        if (records.isEmpty) return const SizedBox.shrink();
-        final record = records.first;
-        final exerciseAsync = ref.watch(_exerciseProvider(record.exerciseId));
-
-        return exerciseAsync.when(
-          data: (exercise) {
-            if (exercise == null) return const SizedBox.shrink();
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppTheme.accent.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                exercise.name,
-                style: const TextStyle(
-                  color: AppTheme.accent,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            );
-          },
-          loading: () => const SizedBox.shrink(),
-          error: (_, _) => const SizedBox.shrink(),
-        );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, _) => const SizedBox.shrink(),
-    );
-  }
-}
-
-final _exerciseProvider = FutureProvider.family<Exercise?, String>((ref, exerciseId) async {
-  final db = ref.watch(databaseProvider);
-  return db.getExerciseById(exerciseId);
-});
