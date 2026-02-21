@@ -343,6 +343,17 @@ abstract class SyncService {
 | | | - Analysis页面休息时间显示优化 |
 | | | - 部位休息时间从精确到天改为精确到小时 |
 | | | - 格式为 "x days x hours"，例如 "1 days 5 hours" |
+| Feature Update | 2026-02-21 | Today页面功能增强和Bug修复 |
+| | | - Today页点击训练项目弹出Details窗口（与Calendar相同） |
+| | | - Details窗口内允许编辑训练部位、动作和组数 |
+| | | - 修复新建部位/动作后不立即显示的bug |
+| | | - 修复添加session后不立即显示的bug |
+|| Feature Update | 2026-02-21 | Plan页面新建自定义计划交互优化 |
+| | | - 新建自定义plan填写名称和周期后点击Save，自动弹出设置窗口 |
+| | | - 设置窗口左侧显示Day列表，右侧显示对应训练部位/休息 |
+| | | - 点击任意Day可快速设置训练部位或休息日 |
+| | | - 训练部位以彩色框显示，休息以灰色框显示 |
+| | | - 完成后点击Done自动选中该新建计划 |
 
 ---
 

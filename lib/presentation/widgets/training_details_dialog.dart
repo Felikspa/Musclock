@@ -28,6 +28,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
   bool _isEditing = false;
   late List<_SetData> _sets;
   late TextEditingController _exerciseNameController;
+  String? _selectedBodyPartId;
 
   @override
   void initState() {
@@ -42,6 +43,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     _exerciseNameController = TextEditingController(
       text: widget.exerciseRecord.exercise.name,
     );
+    _selectedBodyPartId = widget.exerciseRecord.exercise.bodyPartId;
   }
 
   @override
@@ -69,6 +71,113 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
       return MuscleGroup.abs;
     }
     return MuscleGroup.rest;
+  }
+
+  // ===== Helper methods for editing =====
+
+  /// Build body part chip (non-edit mode)
+  Widget _buildBodyPartChip(String bodyPartName, Color muscleColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: muscleColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        bodyPartName,
+        style: TextStyle(
+          color: muscleColor,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  /// Build body part selector (edit mode)
+  Widget _buildBodyPartSelector() {
+    final bodyPartsAsync = ref.watch(bodyPartsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.l10n.bodyPart,
+          style: TextStyle(
+            color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 8),
+        bodyPartsAsync.when(
+          data: (bodyParts) => Wrap(
+            spacing: 6, runSpacing: 4,
+            children: bodyParts.map((bp) {
+              final bpMuscleGroup = _getMuscleGroupByName(bp.name);
+              final bpColor = AppTheme.getMuscleColor(bpMuscleGroup);
+              final isSelected = _selectedBodyPartId == bp.id;
+              return ChoiceChip(
+                label: Text(bp.name, style: const TextStyle(fontSize: 12)),
+                selected: isSelected,
+                selectedColor: bpColor.withOpacity(0.3),
+                onSelected: (selected) {
+                  setState(() => _selectedBodyPartId = selected ? bp.id : null);
+                },
+              );
+            }).toList(),
+          ),
+          loading: () => const SizedBox(height: 32, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+          error: (e, s) => Text('Error: $e'),
+        ),
+      ],
+    );
+  }
+
+  /// Build exercise selector (edit mode)
+  Widget _buildExerciseSelector() {
+    final exercisesAsync = ref.watch(exercisesProvider);
+    final filteredExercises = exercisesAsync.maybeWhen(
+      data: (exercises) => _selectedBodyPartId != null
+          ? exercises.where((e) => e.bodyPartId == _selectedBodyPartId).toList()
+          : exercises,
+      orElse: () => <Exercise>[],
+    );
+
+    return InkWell(
+      onTap: () => _showExerciseDialog(filteredExercises),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Expanded(child: Text(_exerciseNameController.text,
+                style: TextStyle(color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight, fontSize: 16))),
+            Icon(Icons.arrow_drop_down, color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Show exercise selection dialog
+  void _showExerciseDialog(List<Exercise> exercises) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(widget.l10n.selectExercise),
+        content: SizedBox(width: double.maxFinite, height: 300,
+          child: exercises.isEmpty
+              ? Center(child: Text(widget.l10n.noData))
+              : ListView.builder(itemCount: exercises.length, itemBuilder: (context, index) =>
+                  ListTile(title: Text(exercises[index].name),
+                    selected: _exerciseNameController.text == exercises[index].name,
+                    onTap: () { _exerciseNameController.text = exercises[index].name; Navigator.pop(ctx); setState(() {}); }))),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(widget.l10n.cancel))],
+      ),
+    );
   }
 
   @override
@@ -149,119 +258,35 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
             ),
             const SizedBox(height: 16),
 
-            // Body part chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: muscleColor.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                bodyPartName,
-                style: TextStyle(
-                  color: muscleColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+            // Body part
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Body part - edit mode shows selector
+                    _isEditing ? _buildBodyPartSelector() : _buildBodyPartChip(bodyPartName, muscleColor),
+                    const SizedBox(height: 16),
 
-            // Exercise name
-            if (_isEditing) ...[
-              Text(
-                widget.l10n.exercise,
-                style: TextStyle(
-                  color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 4),
-              TextField(
-                controller: _exerciseNameController,
-                style: TextStyle(
-                  color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                ),
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  filled: true,
-                  fillColor: widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ] else ...[
-              Text(
-                widget.l10n.exercise,
-                style: TextStyle(
-                  color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                exercise.exercise.name,
-                style: TextStyle(
-                  color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
+                    // Exercise
+                    Text(widget.l10n.exercise, style: TextStyle(color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    _isEditing ? _buildExerciseSelector() : Text(exercise.exercise.name,
+                        style: TextStyle(color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight, fontSize: 16, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 16),
 
-            // Sets section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  widget.l10n.sets,
-                  style: TextStyle(
-                    color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                    fontSize: 12,
-                  ),
+                    // Sets
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text(widget.l10n.sets, style: TextStyle(color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight, fontSize: 12)),
+                      if (_isEditing) IconButton(onPressed: _addSet, icon: Icon(Icons.add_circle, color: AppTheme.accent, size: 20), padding: EdgeInsets.zero, constraints: const BoxConstraints())
+                    ]),
+                    const SizedBox(height: 8),
+                    _sets.isEmpty
+                        ? Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Center(child: Text(widget.l10n.noData, style: TextStyle(color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight, fontSize: 14))))
+                        : ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: _sets.length, itemBuilder: (context, index) => _buildSetItem(_sets[index], index)),
+                  ],
                 ),
-                if (_isEditing)
-                  IconButton(
-                    onPressed: _addSet,
-                    icon: Icon(
-                      Icons.add_circle,
-                      color: AppTheme.accent,
-                      size: 20,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // Sets list
-            Flexible(
-              child: _sets.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          widget.l10n.noData,
-                          style: TextStyle(
-                            color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _sets.length,
-                      itemBuilder: (context, index) {
-                        final set = _sets[index];
-                        return _buildSetItem(set, index);
-                      },
-                    ),
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -275,7 +300,6 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                     onPressed: () {
                       setState(() {
                         _isEditing = false;
-                        // Reset to original values
                         _sets = widget.exerciseRecord.sets
                             .map((s) => _SetData(
                                   id: s.id,
@@ -284,6 +308,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                                 ))
                             .toList();
                         _exerciseNameController.text = widget.exerciseRecord.exercise.name;
+                        _selectedBodyPartId = widget.exerciseRecord.exercise.bodyPartId;
                       });
                     },
                     child: Text(widget.l10n.cancel),
@@ -487,13 +512,16 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     final db = ref.read(databaseProvider);
 
     try {
-      // Update exercise name if changed
+      // Update exercise name and body part if changed
       final newName = _exerciseNameController.text.trim();
-      if (newName != widget.exerciseRecord.exercise.name) {
+      final newBodyPartId = _selectedBodyPartId ?? widget.exerciseRecord.exercise.bodyPartId;
+      
+      if (newName != widget.exerciseRecord.exercise.name || 
+          newBodyPartId != widget.exerciseRecord.exercise.bodyPartId) {
         await db.updateExercise(ExercisesCompanion(
           id: Value(widget.exerciseRecord.exercise.id),
           name: Value(newName),
-          bodyPartId: Value(widget.exerciseRecord.exercise.bodyPartId),
+          bodyPartId: Value(newBodyPartId),
           createdAt: Value(widget.exerciseRecord.exercise.createdAt),
         ));
       }

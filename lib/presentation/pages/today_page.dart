@@ -4,7 +4,9 @@ import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/enums/muscle_enum.dart';
 import '../../data/database/database.dart';
+import '../../domain/entities/exercise_record_with_session.dart';
 import '../providers/providers.dart';
+import '../widgets/training_details_dialog.dart';
 
 // State for the workout session
 class WorkoutSessionState {
@@ -316,7 +318,7 @@ class TodayPage extends ConsumerWidget {
                 // Start session and show add exercise dialog
                 await ref.read(workoutSessionProvider.notifier).startNewSession();
                 if (context.mounted) {
-                  _showAddExerciseSheet(context, ref, bodyPartsAsync, exercisesAsync, l10n);
+                  _showAddExerciseSheet(context, ref, l10n);
                 }
               },
               icon: const Icon(Icons.add),
@@ -328,8 +330,6 @@ class TodayPage extends ConsumerWidget {
   void _showAddExerciseSheet(
     BuildContext context,
     WidgetRef ref,
-    AsyncValue<List<BodyPart>> bodyPartsAsync,
-    AsyncValue<List<Exercise>> exercisesAsync,
     AppLocalizations l10n,
   ) {
     showModalBottomSheet(
@@ -342,8 +342,6 @@ class TodayPage extends ConsumerWidget {
         expand: false,
         builder: (context, scrollController) => _AddExerciseSheet(
           scrollController: scrollController,
-          bodyPartsAsync: bodyPartsAsync,
-          exercisesAsync: exercisesAsync,
           l10n: l10n,
           autoCloseOnAdd: true,
         ),
@@ -466,17 +464,37 @@ class _SavedSessionCard extends ConsumerWidget {
 
         final data = snapshot.data!;
         
+        // Get the earliest time from exercises, or use session start time as fallback
+        final earliestTime = data.earliestTime ?? session.startTime;
+        
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Session header with body parts
-            Text(
-              data.bodyParts.join(' + '),
-              style: TextStyle(
-                color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+            // Session header with body parts on left, time on right
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Body parts on left
+                Expanded(
+                  child: Text(
+                    data.bodyParts.join(' + '),
+                    style: TextStyle(
+                      color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                // Time on right - using earliest exercise time
+                Text(
+                  _formatTime(earliestTime),
+                  style: TextStyle(
+                    color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             
@@ -485,7 +503,7 @@ class _SavedSessionCard extends ConsumerWidget {
               exercise: exercise,
               isDark: isDark,
               l10n: l10n,
-              sessionTime: session.startTime,
+              onTap: () => _showExerciseDetailsDialog(context, ref, exercise),
             )),
           ],
         );
@@ -497,6 +515,7 @@ class _SavedSessionCard extends ConsumerWidget {
     final db = ref.read(databaseProvider);
     final Map<String, _ExerciseWithSets> exerciseMap = {};
     final Set<String> bodyParts = {};
+    DateTime? earliestTime;
 
     for (final record in records) {
       final exercise = await db.getExerciseById(record.exerciseId);
@@ -517,7 +536,13 @@ class _SavedSessionCard extends ConsumerWidget {
             name: exercise.name,
             bodyPart: bodyPart?.name ?? '',
             sets: sets,
+            record: record, // Pass the record
           );
+        }
+        
+        // Track earliest time (use session start time as reference)
+        if (earliestTime == null || session.startTime.isBefore(earliestTime!)) {
+          earliestTime = session.startTime;
         }
       }
     }
@@ -525,11 +550,37 @@ class _SavedSessionCard extends ConsumerWidget {
     return _SessionDisplayData(
       bodyParts: bodyParts.toList(),
       exercises: exerciseMap.values.toList(),
+      earliestTime: earliestTime,
     );
   }
 
   String _formatTime(DateTime time) {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _showExerciseDetailsDialog(BuildContext context, WidgetRef ref, _ExerciseWithSets exercise) async {
+    final db = ref.read(databaseProvider);
+    final exerciseData = await db.getExerciseById(exercise.record.exerciseId);
+    final bodyPart = exerciseData != null ? await db.getBodyPartById(exerciseData.bodyPartId) : null;
+    
+    if (exerciseData != null && context.mounted) {
+      final exerciseRecordWithSession = ExerciseRecordWithSession(
+        record: exercise.record,
+        session: session,
+        exercise: exerciseData,
+        bodyPart: bodyPart,
+        sets: exercise.sets,
+      );
+      
+      showDialog(
+        context: context,
+        builder: (context) => TrainingDetailsDialog(
+          exerciseRecord: exerciseRecordWithSession,
+          isDark: isDark,
+          l10n: l10n,
+        ),
+      );
+    }
   }
 }
 
@@ -537,10 +588,12 @@ class _SavedSessionCard extends ConsumerWidget {
 class _SessionDisplayData {
   final List<String> bodyParts;
   final List<_ExerciseWithSets> exercises;
+  final DateTime? earliestTime;
 
   _SessionDisplayData({
     required this.bodyParts,
     required this.exercises,
+    this.earliestTime,
   });
 }
 
@@ -548,11 +601,13 @@ class _ExerciseWithSets {
   final String name;
   final String bodyPart;
   final List<SetRecord> sets;
+  final ExerciseRecord record; // Store the record for dialog
 
   _ExerciseWithSets({
     required this.name,
     required this.bodyPart,
     required this.sets,
+    required this.record,
   });
 }
 
@@ -561,13 +616,13 @@ class _ExerciseItemWidget extends StatelessWidget {
   final _ExerciseWithSets exercise;
   final bool isDark;
   final AppLocalizations l10n;
-  final DateTime sessionTime;
+  final VoidCallback? onTap;
 
   const _ExerciseItemWidget({
     required this.exercise,
     required this.isDark,
     required this.l10n,
-    required this.sessionTime,
+    this.onTap,
   });
 
   /// Map body part name to MuscleGroup for color display
@@ -591,91 +646,77 @@ class _ExerciseItemWidget extends StatelessWidget {
     return MuscleGroup.rest;
   }
 
-  String _formatTime(DateTime time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     // Get muscle color
     final muscleGroup = _getMuscleGroupByName(exercise.bodyPart);
-    final muscleColor = AppTheme.getMuscleColor(muscleGroup);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // First row: Body part (large, left) + time (small gray, right)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Body part name - large text
-              Text(
-                exercise.bodyPart,
-                style: TextStyle(
-                  color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: double.infinity, // Fill horizontal space
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // First row: Body part name only (large, left)
+            Text(
+              exercise.bodyPart,
+              style: TextStyle(
+                color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
-              // Time - small gray text
-              Text(
-                _formatTime(sessionTime),
-                style: TextStyle(
-                  color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          
-          // Second row: Exercise name and/or sets
-          if (exercise.name.isNotEmpty || exercise.sets.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            // Exercise name
-            if (exercise.name.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  exercise.name,
-                  style: TextStyle(
-                    color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+            ),
+            
+            // Second row: Exercise name and/or sets
+            if (exercise.name.isNotEmpty || exercise.sets.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              // Exercise name
+              if (exercise.name.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    exercise.name,
+                    style: TextStyle(
+                      color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-            // Sets with green boxes
-            if (exercise.sets.isNotEmpty)
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: exercise.sets.map((set) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accent, // Green solid color
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${set.weight}kg x ${set.reps}',
-                      style: TextStyle(
-                        color: isDark ? AppTheme.primaryDark : Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+              // Sets with green boxes
+              if (exercise.sets.isNotEmpty)
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: exercise.sets.map((set) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accent, // Green solid color
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                    ),
-                  );
-                }).toList(),
-              ),
+                      child: Text(
+                        '${set.weight}kg x ${set.reps}',
+                        style: TextStyle(
+                          color: isDark ? AppTheme.primaryDark : Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -761,7 +802,7 @@ class _ActiveWorkoutViewState extends ConsumerState<_ActiveWorkoutView> {
 
         // Add Exercise Button
         OutlinedButton.icon(
-          onPressed: () => _showAddExerciseSheet(context, ref, bodyPartsAsync, exercisesAsync, l10n),
+          onPressed: () => _showAddExerciseSheet(context, ref, l10n),
           icon: const Icon(Icons.add),
           label: Text(l10n.addExercise),
           style: OutlinedButton.styleFrom(
@@ -775,8 +816,6 @@ class _ActiveWorkoutViewState extends ConsumerState<_ActiveWorkoutView> {
   void _showAddExerciseSheet(
     BuildContext context,
     WidgetRef ref,
-    AsyncValue<List<BodyPart>> bodyPartsAsync,
-    AsyncValue<List<Exercise>> exercisesAsync,
     AppLocalizations l10n,
   ) {
     showModalBottomSheet(
@@ -789,8 +828,6 @@ class _ActiveWorkoutViewState extends ConsumerState<_ActiveWorkoutView> {
         expand: false,
         builder: (context, scrollController) => _AddExerciseSheet(
           scrollController: scrollController,
-          bodyPartsAsync: bodyPartsAsync,
-          exercisesAsync: exercisesAsync,
           l10n: l10n,
           autoCloseOnAdd: true,
         ),
@@ -881,15 +918,10 @@ class _ExerciseCard extends ConsumerWidget {
 
   void _showAddSetDialog(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final exercisesAsync = ref.read(exercisesProvider);
-    final bodyPartsAsync = ref.read(bodyPartsProvider);
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) => _AddSetSheet(
-        bodyPartsAsync: bodyPartsAsync,
-        exercisesAsync: exercisesAsync,
         l10n: l10n,
         exerciseIndex: exerciseIndex,
         existingExercise: exerciseInSession.exercise,
@@ -948,15 +980,11 @@ class _SetRow extends ConsumerWidget {
 
 class _AddExerciseSheet extends ConsumerStatefulWidget {
   final ScrollController scrollController;
-  final AsyncValue<List<BodyPart>> bodyPartsAsync;
-  final AsyncValue<List<Exercise>> exercisesAsync;
   final AppLocalizations l10n;
   final bool autoCloseOnAdd;
 
   const _AddExerciseSheet({
     required this.scrollController,
-    required this.bodyPartsAsync,
-    required this.exercisesAsync,
     required this.l10n,
     this.autoCloseOnAdd = false,
   });
@@ -971,6 +999,10 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch providers directly so they update automatically when new data is added
+    final bodyPartsAsync = ref.watch(bodyPartsProvider);
+    final exercisesAsync = ref.watch(exercisesProvider);
+
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -996,7 +1028,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
           // Body Part Selection
           Text(widget.l10n.selectBodyPart, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          widget.bodyPartsAsync.when(
+          bodyPartsAsync.when(
             data: (bodyParts) => Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -1031,7 +1063,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
             Text(widget.l10n.selectExercise, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Expanded(
-              child: widget.exercisesAsync.when(
+              child: exercisesAsync.when(
                 data: (exercises) {
                   final filtered = exercises.where((e) => e.bodyPartId == _selectedBodyPartId).toList();
                   if (filtered.isEmpty) {
@@ -1087,7 +1119,7 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
             child: FilledButton(
               onPressed: _selectedExerciseId != null
                   ? () async {
-                      final exercise = widget.exercisesAsync.value?.firstWhere(
+                      final exercise = exercisesAsync.value?.firstWhere(
                         (e) => e.id == _selectedExerciseId,
                       );
                       if (exercise != null) {
@@ -1192,16 +1224,12 @@ class _AddExerciseSheetState extends ConsumerState<_AddExerciseSheet> {
 // ============ Add Set Sheet with Body Part and Exercise Selection ============
 
 class _AddSetSheet extends ConsumerStatefulWidget {
-  final AsyncValue<List<BodyPart>> bodyPartsAsync;
-  final AsyncValue<List<Exercise>> exercisesAsync;
   final AppLocalizations l10n;
   final int exerciseIndex;
   final Exercise? existingExercise;
   final BodyPart? existingBodyPart;
 
   const _AddSetSheet({
-    required this.bodyPartsAsync,
-    required this.exercisesAsync,
     required this.l10n,
     required this.exerciseIndex,
     this.existingExercise,
@@ -1237,6 +1265,10 @@ class _AddSetSheetState extends ConsumerState<_AddSetSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch providers directly so they update automatically when new data is added
+    final bodyPartsAsync = ref.watch(bodyPartsProvider);
+    final exercisesAsync = ref.watch(exercisesProvider);
+
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
       minChildSize: 0.5,
@@ -1271,7 +1303,7 @@ class _AddSetSheetState extends ConsumerState<_AddSetSheet> {
               // Body Part Selection
               Text(widget.l10n.selectBodyPart, style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
-              widget.bodyPartsAsync.when(
+              bodyPartsAsync.when(
                 data: (bodyParts) => Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -1299,7 +1331,7 @@ class _AddSetSheetState extends ConsumerState<_AddSetSheet> {
                 Text(widget.l10n.selectExercise, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: widget.exercisesAsync.when(
+                  child: exercisesAsync.when(
                     data: (exercises) {
                       final filtered = exercises.where((e) => e.bodyPartId == _selectedBodyPartId).toList();
                       if (filtered.isEmpty) {
