@@ -1,7 +1,7 @@
 # Muscle Clock 项目档案
 
 > **最后更新**: 2026-02-21
-> **版本**: v1.2.2 (Feature)
+> **版本**: v1.2.5 (Bugfix)
 > **状态**: 维护与优化阶段
 
 ## 1. 项目概览 (Overview)
@@ -210,9 +210,12 @@ abstract class SyncService {
 
 | 版本 | 日期 | 类型 | 说明 |
 |------|------|------|------|
-| **v1.2.2** | 2026-02-21 | **Feature** | **Today页交互优化**<br>- **训练部位显示**: ExerciseCard中训练部位改用彩色线框样式显示，与Plan页一致。<br>- **多选支持**: AddExerciseSheet支持多选bodyPart和exercise，可一次性添加多个训练项目。<br>- **简化保存逻辑**: AddExerciseSheet只需选中部位即可保存，不再强制选择动作；AddSetSheet只需选中动作即可保存，不再强制填写重量和组数。<br>- **重复检测**: 添加同一session重复动作检测，跳过重复项目并提示用户。<br>- **AddSetSheet精简**: 移除AddSetSheet中的部位选择栏，简化界面。 |
-| **v1.2.1** | 2026-02-21 | **Performance** | **性能优化**<br>- **N+1 查询修复**: 在 `database.dart` 添加 JOIN 聚合查询方法，重构 `exercise_records_list.dart` 和 `day_detail_card.dart` 使用批量查询，查询次数从 32+ 次降至 2-3 次。<br>- **日历构建优化**: 在 `providers.dart` 添加 `sessionsByDateProvider` 索引 Provider，将日历查找复杂度从 O(Days × Sessions) 降为 O(1)。<br>- **依赖清理**: 移除未使用的 `shared_preferences` 依赖，减小包体积。 |
-| **v1.2.0** | 2026-02-21 | **Refactoring** | **全架构重构与代码优化**<br>- **架构分层 (Phase 1)**: 实现 Plan/Session Repository 模式，UI层彻底解耦数据库。<br>- **大文件拆分 (Phase 2)**: 重构 `plan_page` (-82%), `calendar_page` (-72%), `today_page` (-92%)，提取了 `plan_selector`, `day_detail_card`, `active_workout_view` 等10+个独立组件。<br>- **代码复用 (Phase 3/4)**: 封装 `entity_mixins.dart` (JSON序列化), `AsyncValueBuilder` (Provider简化), `AppThemeConfig` (主题配置)。<br>- **清理**: 删除冗余代码，合并 Export/Backup 服务，移除死代码约 400 行。 |
-| **v1.1.0** | 2026-02-21 | **Feature** | **核心功能增强与体验优化**<br>- **数据**: 新增 Glutes (臀) / Abs (腹) 部位及其中文支持，内置预设经典动作。<br>- **Today页面**: 优化卡片视觉（层级式布局，主次分明）；简化交互流程（New Session 直接添加动作，自动保存，一键完成）；支持点击条目查看/编辑详情。<br>- **Calendar页面**: 统一卡片视觉风格；支持点击日期展开查看及编辑历史记录；优化热力图逻辑。<br>- **Plan页面**: 优化自定义计划创建流程，新增可视化设置弹窗（支持颜色标记部位）。<br>- **Analysis**: 恢复时间显示精确度提升至小时 (Days + Hours)。 |
-| | 2026-02-21 | **Bugfix** | **稳定性与细节修复**<br>- **编译/运行**: 修复 table_calendar 依赖及 Drift 类型错误；修复 Theme 重构后的兼容性问题。<br>- **UI/UX**: 修复 Plan 页面颜色对比度问题；优化字体大小与颜色规范。<br>- **逻辑**: 修复新建项目刷新延迟；检测并阻止重复动作名称；修复 Session 归组逻辑。<br>- **国际化**: 补全缺失的中英文翻译键值。 |
-| **v1.0.0** | 2026-02-20 | **MVP** | **初始版本**<br>- 基础功能上线：训练记录 (Today)、日历视图 (Calendar)、数据分析 (Analysis)、计划管理 (Plan)。 |
+| **v1.2.5** | 2026-02-21 | Bugfix | **Today Session View实时更新Bug**<br>- **问题**: Today Session View中新增或删除session项目后不能实时显示，而Active Workout View和Calendar中都能正常显示。<br>- **修复**: 根本原因是 `_recordsProvider` 使用了 `FutureProvider.family`，该Provider只在首次加载时获取数据，不会监听数据库变化。修改为使用 `StreamProvider.family` 配合数据库的 `watchRecordsBySession()` 方法，实现对记录变化的实时监听。 |
+| **v1.2.4** | 2026-02-21 | Bugfix | **New Session添加项目后不显示Bug**<br>- **问题**: 新建session添加项目保存后，新项目不能直接显示在today页，必须重启app才能显示。<br>- **修复**: 根本原因是 `ActiveWorkoutView` 通过构造函数参数接收 `sessionState`，而不是自己通过 `ref.watch()` 监听 provider。修改为让 `ActiveWorkoutView` 直接监听 `workoutSessionProvider`，确保状态变化时UI正确刷新。 |
+| **v1.2.3** | 2026-02-21 | Bugfix | **Part-only项目显示修复**<br>- **问题**: 只设置训练部位但不设置训练内容的项目（part-only）在Calendar中能显示，但在Today页不能显示。<br>- **修复**: 在 `today_session_view.dart` 的 `_getSessionDisplayData` 方法中添加对 part-only 记录的处理逻辑，解析 `exerciseId` 中的 `bodyPart:` 前缀并正确显示训练部位。 |
+| **v1.2.2** | 2026-02-21 | Feature | **Today页交互优化**<br>- **训练部位显示**: ExerciseCard中训练部位改用彩色线框样式显示，与Plan页一致。<br>- **多选支持**: AddExerciseSheet支持多选bodyPart和exercise，可一次性添加多个训练项目。<br>- **简化保存逻辑**: AddExerciseSheet只需选中部位即可保存，不再强制选择动作；AddSetSheet只需选中动作即可保存，不再强制填写重量和组数。<br>- **重复检测**: 添加同一session重复动作检测，跳过重复项目并提示用户。<br>- **AddSetSheet精简**: 移除AddSetSheet中的部位选择栏，简化界面。 |
+| **v1.2.1** | 2026-02-21 | Performance | **性能优化**<br>- **N+1 查询修复**: 在 `database.dart` 添加 JOIN 聚合查询方法，重构 `exercise_records_list.dart` 和 `day_detail_card.dart` 使用批量查询，查询次数从 32+ 次降至 2-3 次。<br>- **日历构建优化**: 在 `providers.dart` 添加 `sessionsByDateProvider` 索引 Provider，将日历查找复杂度从 O(Days × Sessions) 降为 O(1)。<br>- **依赖清理**: 移除未使用的 `shared_preferences` 依赖，减小包体积。 |
+| **v1.2.0** | 2026-02-21 | Refactoring | **全架构重构与代码优化**<br>- **架构分层 (Phase 1)**: 实现 Plan/Session Repository 模式，UI层彻底解耦数据库。<br>- **大文件拆分 (Phase 2)**: 重构 `plan_page` (-82%), `calendar_page` (-72%), `today_page` (-92%)，提取了 `plan_selector`, `day_detail_card`, `active_workout_view` 等10+个独立组件。<br>- **代码复用 (Phase 3/4)**: 封装 `entity_mixins.dart` (JSON序列化), `AsyncValueBuilder` (Provider简化), `AppThemeConfig` (主题配置)。<br>- **清理**: 删除冗余代码，合并 Export/Backup 服务，移除死代码约 400 行。 |
+| **v1.1.0** | 2026-02-21 | Feature | **核心功能增强与体验优化**<br>- **数据**: 新增 Glutes (臀) / Abs (腹) 部位及其中文支持，内置预设经典动作。<br>- **Today页面**: 优化卡片视觉（层级式布局，主次分明）；简化交互流程（New Session 直接添加动作，自动保存，一键完成）；支持点击条目查看/编辑详情。<br>- **Calendar页面**: 统一卡片视觉风格；支持点击日期展开查看及编辑历史记录；优化热力图逻辑。<br>- **Plan页面**: 优化自定义计划创建流程，新增可视化设置弹窗（支持颜色标记部位）。<br>- **Analysis**: 恢复时间显示精确度提升至小时 (Days + Hours)。 |
+| | 2026-02-21 | Bugfix | **稳定性与细节修复**<br>- **编译/运行**: 修复 table_calendar 依赖及 Drift 类型错误；修复 Theme 重构后的兼容性问题。<br>- **UI/UX**: 修复 Plan 页面颜色对比度问题；优化字体大小与颜色规范。<br>- **逻辑**: 修复新建项目刷新延迟；检测并阻止重复动作名称；修复 Session 归组逻辑。<br>- **国际化**: 补全缺失的中英文翻译键值。 |
+| **v1.0.0** | 2026-02-20 | MVP | **初始版本**<br>- 基础功能上线：训练记录 (Today)、日历视图 (Calendar)、数据分析 (Analysis)、计划管理 (Plan)。 |

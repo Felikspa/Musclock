@@ -6,7 +6,6 @@ import '../../data/database/database.dart';
 import '../../domain/entities/exercise_record_with_session.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
-import '../providers/workout_session_provider.dart';
 import 'training_details_dialog.dart';
 
 // Data class for session display
@@ -36,10 +35,10 @@ class ExerciseWithSets {
   });
 }
 
-// Provider for fetching records by session
-final _recordsProvider = FutureProvider.family<List<ExerciseRecord>, String>((ref, sessionId) async {
+// Provider for watching records by session (real-time updates)
+final _recordsProvider = StreamProvider.family<List<ExerciseRecord>, String>((ref, sessionId) {
   final db = ref.watch(databaseProvider);
-  return db.getRecordsBySession(sessionId);
+  return db.watchRecordsBySession(sessionId);
 });
 
 // Display today's saved training sessions
@@ -170,6 +169,33 @@ class SavedSessionCard extends ConsumerWidget {
     DateTime? earliestTime;
 
     for (final record in records) {
+      // Check if this is a body-part-only record (exerciseId starts with "bodyPart:")
+      if (record.exerciseId.startsWith('bodyPart:')) {
+        // Extract body part ID from "bodyPart:xxx"
+        final bodyPartId = record.exerciseId.substring('bodyPart:'.length);
+        final bodyPart = await db.getBodyPartById(bodyPartId);
+        if (bodyPart != null) {
+          bodyParts.add(bodyPart.name);
+          
+          // Create a body-part-only entry
+          final key = 'bodyPart:${bodyPart.id}';
+          if (!exerciseMap.containsKey(key)) {
+            exerciseMap[key] = ExerciseWithSets(
+              name: '',  // No specific exercise name
+              bodyPart: bodyPart.name,
+              sets: [],  // No sets for body-part-only entry
+              record: record,
+            );
+          }
+          
+          if (earliestTime == null || session.startTime.isBefore(earliestTime!)) {
+            earliestTime = session.startTime;
+          }
+        }
+        continue;
+      }
+      
+      // Normal exercise record
       final exercise = await db.getExerciseById(record.exerciseId);
       if (exercise != null) {
         final bodyPart = await db.getBodyPartById(exercise.bodyPartId);

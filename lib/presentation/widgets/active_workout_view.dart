@@ -5,25 +5,18 @@ import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
-import '../widgets/exercise_card.dart';
+import 'exercise_card.dart';
 import 'add_exercise_sheet.dart';
 
-class ActiveWorkoutView extends ConsumerStatefulWidget {
-  final WorkoutSessionState sessionState;
-
-  const ActiveWorkoutView({super.key, required this.sessionState});
+class ActiveWorkoutView extends ConsumerWidget {
+  const ActiveWorkoutView({super.key});
 
   @override
-  ConsumerState<ActiveWorkoutView> createState() => _ActiveWorkoutViewState();
-}
-
-class _ActiveWorkoutViewState extends ConsumerState<ActiveWorkoutView> {
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the provider directly to ensure UI updates when state changes
+    final sessionState = ref.watch(workoutSessionProvider);
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final exercisesAsync = ref.watch(exercisesProvider);
-    final bodyPartsAsync = ref.watch(bodyPartsProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -56,7 +49,7 @@ class _ActiveWorkoutViewState extends ConsumerState<ActiveWorkoutView> {
         ),
         
         // Exercises List
-        if (widget.sessionState.exercises.isEmpty)
+        if (sessionState.exercises.isEmpty)
           Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
@@ -70,7 +63,7 @@ class _ActiveWorkoutViewState extends ConsumerState<ActiveWorkoutView> {
             ),
           )
         else
-          ...widget.sessionState.exercises.asMap().entries.map((entry) {
+          ...sessionState.exercises.asMap().entries.map((entry) {
             final index = entry.key;
             final exerciseInSession = entry.value;
             return ExerciseCard(

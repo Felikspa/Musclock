@@ -223,15 +223,16 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
 
   void _saveExercises(BuildContext context, AsyncValue<List<Exercise>> exercisesAsync) async {
     final sessionState = ref.read(workoutSessionProvider);
+    final bodyPartsAsync = ref.read(bodyPartsProvider);
     final exercises = exercisesAsync.value;
+    final bodyParts = bodyPartsAsync.value;
     
-    if (exercises == null) return;
+    if (bodyParts == null) return;
 
     int addedCount = 0;
-    int duplicateCount = 0;
 
     // If exercises are selected, add them
-    if (_selectedExerciseIds.isNotEmpty) {
+    if (_selectedExerciseIds.isNotEmpty && exercises != null) {
       for (final exerciseId in _selectedExerciseIds) {
         final exercise = exercises.firstWhere(
           (e) => e.id == exerciseId,
@@ -247,11 +248,10 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
 
         // Check if exercise already exists in session
         final isDuplicate = sessionState.exercises.any(
-          (e) => e.exercise.id == exercise.id,
+          (e) => e.exercise?.id == exercise.id,
         );
         
         if (isDuplicate) {
-          duplicateCount++;
           continue;
         }
 
@@ -260,44 +260,33 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
       }
     } else {
       // No exercises selected - just body parts
-      // Find all exercises for selected body parts and add them
+      // Add body-part-only entries (no specific exercise)
       for (final bodyPartId in _selectedBodyPartIds) {
-        final bodyPartExercises = exercises
-            .where((e) => e.bodyPartId == bodyPartId)
-            .toList();
+        final bodyPart = bodyParts.firstWhere(
+          (bp) => bp.id == bodyPartId,
+          orElse: () => BodyPart(
+            id: '',
+            name: '',
+            createdAt: DateTime.now(),
+            isDeleted: false,
+          ),
+        );
         
-        for (final exercise in bodyPartExercises) {
-          // Check if exercise already exists in session
-          final isDuplicate = sessionState.exercises.any(
-            (e) => e.exercise.id == exercise.id,
-          );
-          
-          if (isDuplicate) {
-            duplicateCount++;
-            continue;
-          }
+        if (bodyPart.id.isEmpty) continue;
 
-          await ref.read(workoutSessionProvider.notifier).addExercise(exercise);
-          addedCount++;
-        }
+        // Add body-part-only entry
+        await ref.read(workoutSessionProvider.notifier).addBodyPart(bodyPart);
+        addedCount++;
       }
     }
 
     ref.invalidate(sessionsProvider);
 
     if (context.mounted) {
-      // Show feedback
-      if (duplicateCount > 0) {
+      if (addedCount > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Skipped $duplicateCount duplicate(s), added $addedCount exercise(s)'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      } else if (addedCount > 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Added $addedCount exercise(s)'),
+            content: Text('Added $addedCount item(s)'),
             backgroundColor: Colors.green,
           ),
         );

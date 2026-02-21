@@ -82,12 +82,12 @@ class PlanItems extends Table {
 // Data class for JOIN queries
 class ExerciseRecordWithDetails {
   final ExerciseRecord record;
-  final Exercise exercise;
+  final Exercise? exercise;  // Nullable for body-part-only records
   final BodyPart bodyPart;
   
   ExerciseRecordWithDetails({
     required this.record,
-    required this.exercise,
+    this.exercise,  // Nullable for body-part-only records
     required this.bodyPart,
   });
 }
@@ -302,6 +302,9 @@ class AppDatabase extends _$AppDatabase {
       List<String> sessionIds) async {
     if (sessionIds.isEmpty) return {};
     
+    final Map<String, List<ExerciseRecordWithDetails>> result = {};
+    
+    // First get normal exercise records with JOIN (exclude bodyPart: prefix)
     final query = select(exerciseRecords).join([
       innerJoin(exercises, exercises.id.equalsExp(exerciseRecords.exerciseId)),
       innerJoin(bodyParts, bodyParts.id.equalsExp(exercises.bodyPartId)),
@@ -310,7 +313,6 @@ class AppDatabase extends _$AppDatabase {
     
     final rows = await query.get();
     
-    final Map<String, List<ExerciseRecordWithDetails>> result = {};
     for (final row in rows) {
       final record = row.readTable(exerciseRecords);
       result.putIfAbsent(record.sessionId, () => []).add(ExerciseRecordWithDetails(
@@ -319,6 +321,29 @@ class AppDatabase extends _$AppDatabase {
         bodyPart: row.readTable(bodyParts),
       ));
     }
+    
+    // Also get body-part-only records (marked with "bodyPart:" prefix)
+    // These have exerciseId like "bodyPart:xxx"
+    for (final sessionId in sessionIds) {
+      final bodyPartRecords = await (select(exerciseRecords)
+        ..where((t) => t.sessionId.equals(sessionId) & 
+                       t.exerciseId.like('bodyPart:%')))
+        .get();
+      
+      for (final record in bodyPartRecords) {
+        // Extract body part ID from "bodyPart:xxx"
+        final bodyPartId = record.exerciseId.substring('bodyPart:'.length);
+        final bodyPart = await getBodyPartById(bodyPartId);
+        if (bodyPart != null) {
+          result.putIfAbsent(sessionId, () => []).add(ExerciseRecordWithDetails(
+            record: record,
+            exercise: null,  // No specific exercise
+            bodyPart: bodyPart,
+          ));
+        }
+      }
+    }
+    
     return result;
   }
 

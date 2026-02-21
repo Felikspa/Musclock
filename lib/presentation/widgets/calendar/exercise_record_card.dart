@@ -23,7 +23,7 @@ class ExerciseRecordCard extends StatelessWidget {
     final timeFormat = DateFormat('HH:mm');
     final exercise = exerciseRecord;
     final bodyPartName = exercise.bodyPart?.name ?? '';
-    final exerciseName = exercise.exercise.name;
+    final exerciseName = exercise.exercise?.name;
 
     // Get muscle color
     final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
@@ -71,20 +71,30 @@ class ExerciseRecordCard extends StatelessWidget {
               const SizedBox(width: 8),
               // Exercise name and sets info
               Expanded(
-                child: exercise.sets.isNotEmpty
-                    ? Text(
-                        '$exerciseName • ${exercise.sets.length} sets',
-                        style: TextStyle(
-                          color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      )
+                child: exerciseName != null
+                    ? (exercise.sets.isNotEmpty
+                        ? Text(
+                            '$exerciseName • ${exercise.sets.length} sets',
+                            style: TextStyle(
+                              color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : Text(
+                            exerciseName,
+                            style: TextStyle(
+                              color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ))
                     : Text(
-                        exerciseName,
+                        bodyPartName,
                         style: TextStyle(
-                          color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                          color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),

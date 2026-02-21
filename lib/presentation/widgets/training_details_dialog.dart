@@ -42,9 +42,9 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
             ))
         .toList();
     _exerciseNameController = TextEditingController(
-      text: widget.exerciseRecord.exercise.name,
+      text: widget.exerciseRecord.exercise?.name ?? '',
     );
-    _selectedBodyPartId = widget.exerciseRecord.exercise.bodyPartId;
+    _selectedBodyPartId = widget.exerciseRecord.exercise?.bodyPartId;
   }
 
   @override
@@ -251,8 +251,10 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                     // Exercise
                     Text(widget.l10n.exercise, style: TextStyle(color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight, fontSize: 12)),
                     const SizedBox(height: 4),
-                    _isEditing ? _buildExerciseSelector() : Text(exercise.exercise.name,
-                        style: TextStyle(color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight, fontSize: 16, fontWeight: FontWeight.w500)),
+                    _isEditing ? _buildExerciseSelector() : (exercise.exercise != null 
+                        ? Text(exercise.exercise!.name,
+                            style: TextStyle(color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight, fontSize: 16, fontWeight: FontWeight.w500))
+                        : const SizedBox.shrink()),
                     const SizedBox(height: 16),
 
                     // Sets
@@ -287,8 +289,8 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                                   reps: s.reps,
                                 ))
                             .toList();
-                        _exerciseNameController.text = widget.exerciseRecord.exercise.name;
-                        _selectedBodyPartId = widget.exerciseRecord.exercise.bodyPartId;
+                        _exerciseNameController.text = widget.exerciseRecord.exercise?.name ?? '';
+                        _selectedBodyPartId = widget.exerciseRecord.exercise?.bodyPartId;
                       });
                     },
                     child: Text(widget.l10n.cancel),
@@ -492,21 +494,93 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     final db = ref.read(databaseProvider);
 
     try {
+      // If this is a body-part-only record, don't allow editing exercise
+      if (widget.exerciseRecord.exercise == null) {
+        // Just save the sets
+        await _saveSetsOnly();
+        return;
+      }
+
       // Update exercise name and body part if changed
       final newName = _exerciseNameController.text.trim();
-      final newBodyPartId = _selectedBodyPartId ?? widget.exerciseRecord.exercise.bodyPartId;
+      final newBodyPartId = _selectedBodyPartId ?? widget.exerciseRecord.exercise!.bodyPartId;
       
-      if (newName != widget.exerciseRecord.exercise.name || 
-          newBodyPartId != widget.exerciseRecord.exercise.bodyPartId) {
+      if (newName != widget.exerciseRecord.exercise!.name || 
+          newBodyPartId != widget.exerciseRecord.exercise!.bodyPartId) {
         await db.updateExercise(ExercisesCompanion(
-          id: Value(widget.exerciseRecord.exercise.id),
+          id: Value(widget.exerciseRecord.exercise!.id),
           name: Value(newName),
           bodyPartId: Value(newBodyPartId),
-          createdAt: Value(widget.exerciseRecord.exercise.createdAt),
+          createdAt: Value(widget.exerciseRecord.exercise!.createdAt),
         ));
       }
 
       // Update sets
+      final originalSets = widget.exerciseRecord.sets;
+
+      // Delete sets that were removed
+      for (final originalSet in originalSets) {
+        final stillExists = _sets.any((s) => s.id == originalSet.id);
+        if (!stillExists) {
+          await db.deleteSetRecord(originalSet.id);
+        }
+      }
+
+      // Update or insert sets
+      for (int i = 0; i < _sets.length; i++) {
+        final set = _sets[i];
+        final existingSet = originalSets.where((s) => s.id == set.id).firstOrNull;
+
+        if (existingSet != null) {
+          // Update existing set
+          await db.updateSetRecord(SetRecordsCompanion(
+            id: Value(set.id),
+            exerciseRecordId: Value(existingSet.exerciseRecordId),
+            weight: Value(set.weight),
+            reps: Value(set.reps),
+            orderIndex: Value(i),
+          ));
+        } else {
+          // Insert new set
+          await db.insertSetRecord(SetRecordsCompanion.insert(
+            id: set.id,
+            exerciseRecordId: widget.exerciseRecord.record.id,
+            weight: set.weight,
+            reps: set.reps,
+            orderIndex: i,
+          ));
+        }
+      }
+
+      // Refresh data
+      ref.invalidate(sessionsProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.l10n.saved),
+            backgroundColor: AppTheme.accent,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Save only sets for body-part-only records (no exercise editing)
+  Future<void> _saveSetsOnly() async {
+    final db = ref.read(databaseProvider);
+
+    try {
       final originalSets = widget.exerciseRecord.sets;
 
       // Delete sets that were removed

@@ -34,15 +34,16 @@ class WorkoutSessionState {
 }
 
 /// Exercise in the current session
+/// Can contain either a specific exercise or just a body part
 class ExerciseInSession {
   final String exerciseRecordId;
-  final Exercise exercise;
+  final Exercise? exercise;  // Can be null if only bodyPart is stored
   final BodyPart? bodyPart;
   final List<SetInSession> sets;
 
   ExerciseInSession({
     required this.exerciseRecordId,
-    required this.exercise,
+    this.exercise,  // Nullable - for body-part-only entries
     this.bodyPart,
     this.sets = const [],
   });
@@ -60,6 +61,9 @@ class ExerciseInSession {
       sets: sets ?? this.sets,
     );
   }
+
+  /// Check if this is a body-part-only entry (no specific exercise)
+  bool get isBodyPartOnly => exercise == null && bodyPart != null;
 }
 
 /// Set in the current session
@@ -115,22 +119,38 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
       final exercisesInSession = <ExerciseInSession>[];
       
       for (final record in records) {
-        final exercise = await db.getExerciseById(record.exerciseId);
-        if (exercise != null) {
-          final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
-          final setRecords = await db.getSetsByExerciseRecord(record.id);
-          final setsInSession = setRecords.map((s) => SetInSession(
-            setRecordId: s.id,
-            weight: s.weight,
-            reps: s.reps,
-            orderIndex: s.orderIndex,
-          )).toList();
-          exercisesInSession.add(ExerciseInSession(
-            exerciseRecordId: record.id,
-            exercise: exercise,
-            bodyPart: bodyPart,
-            sets: setsInSession,
-          ));
+        // Check if this is a body-part-only record (marked with "bodyPart:" prefix)
+        if (record.exerciseId.startsWith('bodyPart:')) {
+          // Extract body part ID from the marker
+          final bodyPartId = record.exerciseId.substring('bodyPart:'.length);
+          final bodyPart = await db.getBodyPartById(bodyPartId);
+          if (bodyPart != null) {
+            exercisesInSession.add(ExerciseInSession(
+              exerciseRecordId: record.id,
+              exercise: null,  // No specific exercise
+              bodyPart: bodyPart,
+              sets: [],
+            ));
+          }
+        } else {
+          // Normal exercise record
+          final exercise = await db.getExerciseById(record.exerciseId);
+          if (exercise != null) {
+            final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
+            final setRecords = await db.getSetsByExerciseRecord(record.id);
+            final setsInSession = setRecords.map((s) => SetInSession(
+              setRecordId: s.id,
+              weight: s.weight,
+              reps: s.reps,
+              orderIndex: s.orderIndex,
+            )).toList();
+            exercisesInSession.add(ExerciseInSession(
+              exerciseRecordId: record.id,
+              exercise: exercise,
+              bodyPart: bodyPart,
+              sets: setsInSession,
+            ));
+          }
         }
       }
       
@@ -152,6 +172,9 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
       startTime: now,
       createdAt: now,
     ));
+
+    // Invalidate sessions provider to refresh UI
+    _ref.invalidate(sessionsProvider);
 
     state = WorkoutSessionState(
       sessionId: sessionId,
@@ -177,6 +200,33 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     final newExercise = ExerciseInSession(
       exerciseRecordId: recordId,
       exercise: exercise,
+      bodyPart: bodyPart,
+    );
+
+    state = state.copyWith(
+      exercises: [...state.exercises, newExercise],
+    );
+  }
+
+  /// Add only body part without specific exercise
+  /// This creates a placeholder entry that displays the body part name
+  Future<void> addBodyPart(BodyPart bodyPart) async {
+    if (state.sessionId == null) return;
+
+    final db = _ref.read(databaseProvider);
+    final recordId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    // Insert exercise record with special marker for body-part-only
+    // Using a prefix to identify body-part-only entries
+    await db.insertExerciseRecord(ExerciseRecordsCompanion.insert(
+      id: recordId,
+      sessionId: state.sessionId!,
+      exerciseId: 'bodyPart:${bodyPart.id}',  // Marker for body-part-only
+    ));
+
+    final newExercise = ExerciseInSession(
+      exerciseRecordId: recordId,
+      exercise: null,  // No specific exercise
       bodyPart: bodyPart,
     );
 

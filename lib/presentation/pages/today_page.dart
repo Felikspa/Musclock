@@ -6,7 +6,6 @@ import '../../data/database/database.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
 import '../widgets/today_session_view.dart';
-import '../widgets/exercise_card.dart';
 import '../widgets/active_workout_view.dart';
 import '../widgets/add_exercise_sheet.dart';
 
@@ -38,7 +37,7 @@ class TodayPage extends ConsumerWidget {
         title: Text(l10n.today),
       ),
       body: sessionState.isActive
-          ? ActiveWorkoutView(sessionState: sessionState)
+          ? const ActiveWorkoutView()
           : todaySessions.isNotEmpty
               ? TodaySessionView(sessions: todaySessions)
               : _NoWorkoutView(bodyPartsAsync: bodyPartsAsync, l10n: l10n),

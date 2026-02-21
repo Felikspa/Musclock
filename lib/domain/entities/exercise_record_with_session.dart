@@ -4,14 +4,14 @@ import '../../data/database/database.dart';
 class ExerciseRecordWithSession {
   final ExerciseRecord record;
   final WorkoutSession session;
-  final Exercise exercise;
+  final Exercise? exercise;  // Nullable for body-part-only records
   final BodyPart? bodyPart;
   final List<SetRecord> sets;
 
   ExerciseRecordWithSession({
     required this.record,
     required this.session,
-    required this.exercise,
+    this.exercise,  // Nullable for body-part-only records
     required this.bodyPart,
     required this.sets,
   });

@@ -64,13 +64,14 @@ class ExerciseCard extends ConsumerWidget {
                       // Body Part with colored border (like Plan page)
                       if (exerciseInSession.bodyPart != null)
                         _buildMuscleChip(exerciseInSession.bodyPart!.name),
-                      // Exercise Name (e.g., Benchpress)
-                      Text(
-                        exerciseInSession.exercise.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
+                      // Exercise Name (only show if exercise exists)
+                      if (exerciseInSession.exercise != null)
+                        Text(
+                          exerciseInSession.exercise!.name,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
                     ],
                   ),
                 ),
@@ -194,7 +195,6 @@ class AddSetSheet extends ConsumerStatefulWidget {
 }
 
 class AddSetSheetState extends ConsumerState<AddSetSheet> {
-  String? _selectedBodyPartId;
   String? _selectedExerciseId;
   final _weightController = TextEditingController(text: '0');
   final _repsController = TextEditingController(text: '0');
@@ -205,7 +205,6 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
     // Pre-select existing exercise and body part if available
     if (widget.existingExercise != null) {
       _selectedExerciseId = widget.existingExercise!.id;
-      _selectedBodyPartId = widget.existingExercise!.bodyPartId;
     }
   }
 
@@ -375,18 +374,30 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
     final weight = double.tryParse(_weightController.text) ?? 0;
     final reps = int.tryParse(_repsController.text) ?? 0;
     
-    if (_selectedExerciseId != null && weight > 0 && reps > 0) {
-      // Check if we need to add a new exercise to the session
-      final exercisesAsync = ref.read(exercisesProvider);
-      final exercise = exercisesAsync.value?.firstWhere(
-        (e) => e.id == _selectedExerciseId,
-      );
+    // Allow saving if we have an exercise selected (weight/reps can be 0)
+    if (_selectedExerciseId != null || widget.existingExercise != null) {
+      // Get the exercise to add
+      Exercise? exercise;
+      if (_selectedExerciseId != null) {
+        final exercisesAsync = ref.read(exercisesProvider);
+        exercise = exercisesAsync.value?.firstWhere(
+          (e) => e.id == _selectedExerciseId,
+          orElse: () => Exercise(
+            id: '',
+            name: '',
+            bodyPartId: '',
+            createdAt: DateTime.now(),
+          ),
+        );
+      } else {
+        exercise = widget.existingExercise;
+      }
       
-      if (exercise != null) {
+      if (exercise != null && exercise.id.isNotEmpty) {
         // Check if this exercise is already in the session
         final sessionState = ref.read(workoutSessionProvider);
         final existingIndex = sessionState.exercises.indexWhere(
-          (e) => e.exercise.id == exercise.id,
+          (e) => e.exercise?.id == exercise!.id,
         );
         
         if (existingIndex >= 0) {
@@ -402,7 +413,7 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
           // Find the new exercise index and add set
           final newState = ref.read(workoutSessionProvider);
           final newIndex = newState.exercises.indexWhere(
-            (e) => e.exercise.id == exercise.id,
+            (e) => e.exercise?.id == exercise!.id,
           );
           if (newIndex >= 0) {
             ref.read(workoutSessionProvider.notifier).addSet(
@@ -427,54 +438,5 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
         }
       }
     }
-  }
-
-  void _showAddExerciseDialog(BuildContext context) {
-    if (_selectedBodyPartId == null) return;
-
-    final nameController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(widget.l10n.addExerciseName),
-        content: TextField(
-          controller: nameController,
-          decoration: InputDecoration(
-            labelText: widget.l10n.enterName,
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(widget.l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () async {
-              if (nameController.text.isNotEmpty) {
-                final db = ref.read(databaseProvider);
-                await db.insertExercise(ExercisesCompanion.insert(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  name: nameController.text,
-                  bodyPartId: _selectedBodyPartId!,
-                  createdAt: DateTime.now().toUtc(),
-                ));
-                ref.invalidate(exercisesProvider);
-                // Select the newly created exercise
-                final exercises = await db.getExercisesByBodyPart(_selectedBodyPartId!);
-                if (exercises.isNotEmpty) {
-                  setState(() {
-                    _selectedExerciseId = exercises.last.id;
-                  });
-                }
-                if (context.mounted) Navigator.pop(context);
-              }
-            },
-            child: Text(widget.l10n.save),
-          ),
-        ],
-      ),
-    );
   }
 }
