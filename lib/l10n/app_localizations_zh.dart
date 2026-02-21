@@ -235,4 +235,162 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get saved => '已保存';
+
+  @override
+  String get selectTrainingPlan => '选择训练计划';
+
+  @override
+  String get schedule => '日程';
+
+  @override
+  String get editPlan => '编辑计划';
+
+  @override
+  String get deletePlan => '删除计划';
+
+  @override
+  String deletePlanConfirmation(String planName) {
+    return '确定要删除「$planName」吗？';
+  }
+
+  @override
+  String get addTrainingDay => '添加训练日';
+
+  @override
+  String get selectDay => '选择日期';
+
+  @override
+  String get selectBodyParts => '选择训练部位';
+
+  @override
+  String get system => '跟随系统';
+
+  @override
+  String get about => '关于';
+
+  @override
+  String get exportAsJson => '导出为 JSON';
+
+  @override
+  String get createBackupFile => '创建备份文件';
+
+  @override
+  String get version => '版本';
+
+  @override
+  String get glutes => '臀';
+
+  @override
+  String get abs => '腹';
+
+  @override
+  String get tapToSetTraining => '点击设置训练';
+
+  @override
+  String get squat => '深蹲';
+
+  @override
+  String get benchPress => '卧推';
+
+  @override
+  String get deadlift => '硬拉';
+
+  @override
+  String get pullUps => '引体向上';
+
+  @override
+  String get overheadPress => '肩上推举';
+
+  @override
+  String get barbellRow => '杠铃划船';
+
+  @override
+  String get legPress => '腿举';
+
+  @override
+  String get inclineBenchPress => '上斜卧推';
+
+  @override
+  String get latPulldown => '高位下拉';
+
+  @override
+  String get dumbbellCurl => '哑铃弯举';
+
+  @override
+  String get lateralRaise => '侧平举';
+
+  @override
+  String get legExtension => '腿伸展';
+
+  @override
+  String get legCurl => '腿弯举';
+
+  @override
+  String get calfRaise => '提踵';
+
+  @override
+  String get romanianDeadlift => '罗马尼亚硬拉';
+
+  @override
+  String get hipThrust => '臀推';
+
+  @override
+  String get lunges => '弓步';
+
+  @override
+  String get dips => '双杠臂屈伸';
+
+  @override
+  String get pushUps => '俯卧撑';
+
+  @override
+  String get dumbbellFly => '哑铃飞鸟';
+
+  @override
+  String get cableCrossover => '绳索夹胸';
+
+  @override
+  String get declineBenchPress => '下斜卧推';
+
+  @override
+  String get dumbbellRow => '哑铃划船';
+
+  @override
+  String get seatedCableRow => '坐姿绳索划船';
+
+  @override
+  String get tBarRow => 'T杠划船';
+
+  @override
+  String get dumbbellShoulderPress => '哑铃肩推';
+
+  @override
+  String get frontRaise => '前平举';
+
+  @override
+  String get rearDeltFly => '俯身飞鸟';
+
+  @override
+  String get facePull => '面拉';
+
+  @override
+  String get shrugs => '耸肩';
+
+  @override
+  String get barbellCurl => '杠铃弯举';
+
+  @override
+  String get hammerCurl => '锤式弯举';
+
+  @override
+  String get tricepPushdown => '三头下压';
+
+  @override
+  String get tricepDips => '三头臂屈伸';
+
+  @override
+  String get skullCrusher => ' Skull Crusher';
+
+  @override
+  String get preacherCurl => '牧师凳弯举';
 }

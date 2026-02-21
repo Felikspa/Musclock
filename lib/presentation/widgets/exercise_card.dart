@@ -21,9 +21,11 @@ class ExerciseCard extends ConsumerWidget {
   });
 
   // Build colored chip for body part display (matching Plan page style)
-  Widget _buildMuscleChip(String bodyPartName) {
+  Widget _buildMuscleChip(String bodyPartName, String locale) {
     final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
     final color = AppTheme.getMuscleColor(muscleGroup);
+    final displayName = muscleGroup.getLocalizedName(locale);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -33,7 +35,7 @@ class ExerciseCard extends ConsumerWidget {
         border: Border.all(color: color.withOpacity(0.5), width: 1.5),
       ),
       child: Text(
-        bodyPartName,
+        displayName,
         style: TextStyle(
           color: color,
           fontSize: 12,
@@ -46,6 +48,7 @@ class ExerciseCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final locale = Localizations.localeOf(context).languageCode;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -63,7 +66,7 @@ class ExerciseCard extends ConsumerWidget {
                     children: [
                       // Body Part with colored border (like Plan page)
                       if (exerciseInSession.bodyPart != null)
-                        _buildMuscleChip(exerciseInSession.bodyPart!.name),
+                        _buildMuscleChip(exerciseInSession.bodyPart!.name, locale),
                       // Exercise Name (only show if exercise exists)
                       if (exerciseInSession.exercise != null)
                         Text(

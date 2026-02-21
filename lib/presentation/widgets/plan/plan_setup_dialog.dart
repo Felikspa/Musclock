@@ -101,17 +101,17 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Plan'),
-        content: Text('Are you sure you want to delete "${widget.planName}"?'),
+        title: Text(widget.l10n.deletePlan),
+        content: Text(widget.l10n.deletePlanConfirmation(widget.planName ?? '')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(widget.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: Text(widget.l10n.delete),
           ),
         ],
       ),
@@ -174,6 +174,7 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
 
     // Refresh providers and close
     ref.invalidate(plansProvider);
+    ref.invalidate(planItemsProvider(_currentPlanId!));
     ref.read(selectedPlanProvider.notifier).state = _nameController.text;
     Navigator.pop(context);
   }
@@ -269,7 +270,7 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
                   child: Text(
                     _isNewPlan 
                         ? (_nameController.text.isEmpty ? widget.l10n.createPlan : _nameController.text)
-                        : 'Edit Plan',
+                        : widget.l10n.editPlan,
                     style: TextStyle(
                       color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
                       fontSize: 20,
@@ -406,6 +407,7 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
                                 config: config,
                                 bodyParts: bodyParts,
                                 isDark: widget.isDark,
+                                l10n: widget.l10n,
                                 onToggleBodyPart: (bodyPartId) {
                                   _toggleBodyPart(index, bodyPartId);
                                   setDialogState(() {});
@@ -461,6 +463,7 @@ class _DayRowInline extends StatelessWidget {
   final DayConfig config;
   final List<BodyPart> bodyParts;
   final bool isDark;
+  final AppLocalizations l10n;
   final Function(String) onToggleBodyPart;
   final VoidCallback onSetRest;
 
@@ -469,12 +472,15 @@ class _DayRowInline extends StatelessWidget {
     required this.config,
     required this.bodyParts,
     required this.isDark,
+    required this.l10n,
     required this.onToggleBodyPart,
     required this.onSetRest,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isChinese = Localizations.localeOf(context).languageCode.startsWith('zh');
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       decoration: BoxDecoration(
@@ -504,7 +510,7 @@ class _DayRowInline extends StatelessWidget {
             runSpacing: 6,
             children: [
               _BodyPartChip(
-                label: 'Rest',
+                label: l10n.rest,
                 color: Colors.grey,
                 isSelected: config.isRest,
                 onTap: onSetRest,
@@ -513,9 +519,12 @@ class _DayRowInline extends StatelessWidget {
                 final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
                 final color = AppTheme.getMuscleColor(muscleGroup);
                 final isSelected = config.bodyPartIds.contains(bp.id);
+                final displayName = muscleGroup != null
+                    ? muscleGroup.getLocalizedName(isChinese ? 'zh' : 'en')
+                    : bp.name;
 
                 return _BodyPartChip(
-                  label: bp.name,
+                  label: displayName,
                   color: color,
                   isSelected: isSelected,
                   onTap: () => onToggleBodyPart(bp.id),

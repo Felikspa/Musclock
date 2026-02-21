@@ -5,6 +5,7 @@ import '../../data/database/database.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
+import 'muscle_group_helper.dart';
 
 class AddExerciseSheet extends ConsumerStatefulWidget {
   final ScrollController scrollController;
@@ -75,13 +76,18 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
           ),
           const SizedBox(height: 8),
           bodyPartsAsync.when(
-            data: (bodyParts) => Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ...bodyParts.map((bp) => FilterChip(
+            data: (bodyParts) {
+              final locale = Localizations.localeOf(context).languageCode;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...bodyParts.map((bp) {
+                    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
+                    final displayName = muscleGroup.getLocalizedName(locale);
+                    return FilterChip(
                       label: Text(
-                        bp.name,
+                        displayName,
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                       ),
                       selected: _selectedBodyPartIds.contains(bp.id),
@@ -109,13 +115,15 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                           }
                         });
                       },
-                    )),
-                ActionChip(
-                  label: Text(widget.l10n.addBodyPart),
-                  onPressed: () => _showAddBodyPartDialog(context),
-                ),
-              ],
-            ),
+                    );
+                  }).toList(),
+                  ActionChip(
+                    label: Text(widget.l10n.addBodyPart),
+                    onPressed: () => _showAddBodyPartDialog(context),
+                  ),
+                ],
+              );
+            },
             loading: () => const CircularProgressIndicator(),
             error: (e, s) => Text('Error: $e'),
           ),

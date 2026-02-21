@@ -233,8 +233,9 @@ class AppDatabase extends _$AppDatabase {
   Future<int> insertPlan(TrainingPlansCompanion entry) =>
       into(trainingPlans).insert(entry);
   
-  Future<bool> updatePlan(TrainingPlansCompanion entry) =>
-      update(trainingPlans).replace(entry);
+  Future<int> updatePlan(TrainingPlansCompanion entry) =>
+      (update(trainingPlans)..where((t) => t.id.equals(entry.id.value)))
+          .write(entry);
   
   Future<int> deletePlan(String id) =>
       (delete(trainingPlans)..where((t) => t.id.equals(id))).go();

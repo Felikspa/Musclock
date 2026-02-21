@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/enums/muscle_enum.dart';
 import '../../../data/database/database.dart';
 import '../../providers/providers.dart';
 import '../muscle_group_helper.dart';
@@ -22,6 +23,7 @@ class CustomPlanDayItem extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bodyPartIds = planItem.bodyPartIds.split(',').where((s) => s.isNotEmpty).toList();
     final bodyPartsAsync = ref.watch(bodyPartsProvider);
+    final locale = Localizations.localeOf(context).languageCode;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -40,12 +42,18 @@ class CustomPlanDayItem extends ConsumerWidget {
           Expanded(
             child: bodyPartsAsync.when(
               data: (bodyParts) {
-                final names = bodyParts
+                final displayItems = bodyParts
                     .where((bp) => bodyPartIds.contains(bp.id))
-                    .map((bp) => bp.name)
+                    .map((bp) {
+                      final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
+                      return {
+                        'name': muscleGroup != null ? muscleGroup.getLocalizedName(locale) : bp.name,
+                        'color': AppTheme.getMuscleColor(muscleGroup),
+                      };
+                    })
                     .toList();
-                
-                if (names.isEmpty) {
+
+                if (displayItems.isEmpty) {
                   return Text(
                     l10n.rest,
                     style: TextStyle(
@@ -54,22 +62,20 @@ class CustomPlanDayItem extends ConsumerWidget {
                     ),
                   );
                 }
-                
+
                 return Wrap(
                   spacing: 8,
-                  children: names.map((name) {
-                    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(name);
-                    final color = AppTheme.getMuscleColor(muscleGroup);
+                  children: displayItems.map((item) {
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.2),
+                        color: (item['color'] as Color).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        name,
+                        item['name'] as String,
                         style: TextStyle(
-                          color: color,
+                          color: item['color'] as Color,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),

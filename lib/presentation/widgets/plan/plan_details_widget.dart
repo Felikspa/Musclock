@@ -7,6 +7,7 @@ import '../../../core/constants/muscle_groups.dart';
 import '../../../data/database/database.dart';
 import '../../providers/providers.dart';
 import 'custom_plan_day_item.dart';
+import '../muscle_group_helper.dart';
 
 class PlanDetailsWidget extends ConsumerWidget {
   final String planName;
@@ -25,13 +26,16 @@ class PlanDetailsWidget extends ConsumerWidget {
     final schedule = WorkoutTemplates.getSchedule(planName);
     
     if (schedule != null) {
-      return _buildPresetPlan(schedule);
+      return _buildPresetPlan(context, schedule);
     }
     
     return _buildCustomPlan(context, ref);
   }
 
-  Widget _buildPresetPlan(Map<int, List<MuscleGroup>> schedule) {
+  Widget _buildPresetPlan(BuildContext context, Map<int, List<MuscleGroup>> schedule) {
+    final locale = Localizations.localeOf(context).languageCode;
+    final isChinese = locale.startsWith('zh');
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -42,7 +46,7 @@ class PlanDetailsWidget extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$planName Schedule',
+            '$planName ${l10n.schedule}',
             style: TextStyle(
               color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
               fontSize: 16,
@@ -50,13 +54,13 @@ class PlanDetailsWidget extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...schedule.entries.map((entry) => _buildScheduleRow(entry.key, entry.value)),
+          ...schedule.entries.map((entry) => _buildScheduleRow(context, entry.key, entry.value)),
         ],
       ),
     );
   }
 
-  Widget _buildScheduleRow(int dayOfWeek, List<MuscleGroup> muscles) {
+  Widget _buildScheduleRow(BuildContext context, int dayOfWeek, List<MuscleGroup> muscles) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -74,7 +78,7 @@ class PlanDetailsWidget extends ConsumerWidget {
           Expanded(
             child: Wrap(
               spacing: 8,
-              children: muscles.map((muscle) => _buildMuscleChip(muscle)).toList(),
+              children: muscles.map((muscle) => _buildMuscleChip(context, muscle)).toList(),
             ),
           ),
         ],
@@ -82,7 +86,7 @@ class PlanDetailsWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildMuscleChip(MuscleGroup muscle) {
+  Widget _buildMuscleChip(BuildContext context, MuscleGroup muscle) {
     final color = AppTheme.getMuscleColor(muscle);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -91,7 +95,7 @@ class PlanDetailsWidget extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
-        _getMuscleName(muscle),
+        _getMuscleName(context, muscle),
         style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
       ),
     );
@@ -101,7 +105,7 @@ class PlanDetailsWidget extends ConsumerWidget {
     final customPlan = ref.watch(customPlanByNameProvider(planName));
     if (customPlan == null) return const SizedBox.shrink();
     
-    final itemsAsync = ref.watch(_planItemsProvider(customPlan.id));
+    final itemsAsync = ref.watch(planItemsProvider(customPlan.id));
     
     return Container(
       padding: const EdgeInsets.all(16),
@@ -116,7 +120,7 @@ class PlanDetailsWidget extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$planName Schedule',
+                '$planName ${l10n.schedule}',
                 style: TextStyle(
                   color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
                   fontSize: 16,
@@ -232,12 +236,12 @@ class PlanDetailsWidget extends ConsumerWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Add Training Day'),
+          title: Text(l10n.addTrainingDay),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Select Day (1-$cycleLengthDays):'),
+              Text('${l10n.selectDay} (1-$cycleLengthDays):'),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -253,23 +257,32 @@ class PlanDetailsWidget extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              const Text('Select Body Parts:'),
+              Text(l10n.selectBodyParts),
               const SizedBox(height: 8),
               bodyPartsAsync.when(
-                data: (bodyParts) => Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: bodyParts.map((bp) => FilterChip(
-                    label: Text(bp.name),
-                    selected: selectedBodyPartIds.contains(bp.id),
-                    onSelected: (selected) {
-                      setState(() {
-                        if (selected) selectedBodyPartIds.add(bp.id);
-                        else selectedBodyPartIds.remove(bp.id);
-                      });
-                    },
-                  )).toList(),
-                ),
+                data: (bodyParts) {
+                  final locale = Localizations.localeOf(context).languageCode;
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: bodyParts.map((bp) {
+                      final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
+                      final displayName = muscleGroup != null 
+                          ? muscleGroup.getLocalizedName(locale) 
+                          : bp.name;
+                      return FilterChip(
+                        label: Text(displayName),
+                        selected: selectedBodyPartIds.contains(bp.id),
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) selectedBodyPartIds.add(bp.id);
+                            else selectedBodyPartIds.remove(bp.id);
+                          });
+                        },
+                      );
+                    }).toList(),
+                  );
+                },
                 loading: () => const CircularProgressIndicator(),
                 error: (e, s) => Text('Error: $e'),
               ),
@@ -286,7 +299,7 @@ class PlanDetailsWidget extends ConsumerWidget {
                   dayIndex: selectedDayIndex,
                   bodyPartIds: selectedBodyPartIds.join(','),
                 ));
-                ref.invalidate(_planItemsProvider(planId));
+                ref.invalidate(planItemsProvider(planId));
                 if (context.mounted) Navigator.pop(context);
               } : null,
               child: Text(l10n.save),
@@ -302,13 +315,9 @@ class PlanDetailsWidget extends ConsumerWidget {
     return days[dayOfWeek - 1];
   }
 
-  String _getMuscleName(MuscleGroup muscle) {
+  String _getMuscleName(BuildContext context, MuscleGroup muscle) {
     if (muscle == MuscleGroup.rest) return l10n.rest;
-    return muscle.english;
+    final locale = Localizations.localeOf(context).languageCode;
+    return muscle.getLocalizedName(locale);
   }
 }
-
-final _planItemsProvider = FutureProvider.family<List<PlanItem>, String>((ref, planId) async {
-  final repo = ref.watch(planRepositoryProvider);
-  return repo.getPlanItemsByPlan(planId);
-});

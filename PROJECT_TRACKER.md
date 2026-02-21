@@ -1,12 +1,12 @@
 # Muscle Clock 项目档案
 
-> **最后更新**: 2026-02-21
-> **版本**: v1.2.6 (Feature)
+> **最后更新**: 2026-02-22
+> **版本**: v1.2.7 (Feature)
 > **状态**: 维护与优化阶段
 
 ## 1. 项目概览 (Overview)
 
-**Muscle Clock** 是一款基于 Flutter 的轻量级力量训练记录与分析工具。它采用 Clean Architecture 架构，旨在帮助用户科学地记录训练内容、追踪肌肉恢复状态、分析训练频率，并制定周期性训练计划。
+**Muscle Clock** 是一款基于 Flutter 的轻量级力量训练记录与分析工具。它采用 Clean Architecture 架构，旨在帮助用户科学地记录训练内容、追踪肌肉恢复状态，分析训练频率，并制定周期性训练计划。
 
 ### 核心功能
 - **训练记录 (Today)**: 实时记录训练动作、组数、重量与次数，支持自动计算容量。
@@ -210,6 +210,7 @@ abstract class SyncService {
 
 | 版本 | 日期 | 类型 | 说明 |
 |------|------|------|------|
+| **v1.2.7** | 2026-02-22 | Feature | **全面中文本地化更新**<br>- **Plan页面**: 修复「Select Training Plan」和「Schedule」的本地化显示，修复「Edit Plan」和「Delete Plan」的中文翻译。<br>- **Body Part显示**: 所有训练部位（Chest/Back/Legs/Shoulders/Arms/Glutes/Abs）在中文模式下显示中文名称。<br>- **预设动作**: 所有预设训练动作（Bench Press/Squat/Deadlift等）添加中文名称翻译。<br>- **Settings页面**: 修复「System」「About」「Export as JSON」「Create backup file」等翻译。<br>- **Exercise Card**: 修复训练记录中部位的显示，根据语言环境显示对应翻译。<br>- **例外保留**: Muscle Clock标题、星期名称(Mon/Tue...)、自定义计划天数(Day1/Day2...)保持英文不翻译。 |
 | **v1.2.6** | 2026-02-21 | Feature | **PlanSetupDialog交互优化**<br>- **参考实现**: 参考 Workout tracker 项目中的 custom plan 创建交互。<br>- **优化内容**: 移除了弹窗式的编辑方式，改为在每行直接显示可点击的部位彩色框。用户可以直接点击相应部位来快速设定计划，无需额外的弹窗确认。<br>- **新增**: 添加部位图例显示，帮助用户快速识别颜色对应的部位。<br>- **本地化**: 添加 `tapToSetTraining` 翻译键支持中英文。 |
 | **v1.2.5** | 2026-02-21 | Bugfix | **Today Session View实时更新Bug**<br>- **问题**: Today Session View中新增或删除session项目后不能实时显示，而Active Workout View和Calendar中都能正常显示。<br>- **修复**: 根本原因是 `_recordsProvider` 使用了 `FutureProvider.family`，该Provider只在首次加载时获取数据，不会监听数据库变化。修改为使用 `StreamProvider.family` 配合数据库的 `watchRecordsBySession()` 方法，实现对记录变化的实时监听。 |
 | **v1.2.4** | 2026-02-21 | Bugfix | **New Session添加项目后不显示Bug**<br>- **问题**: 新建session添加项目保存后，新项目不能直接显示在today页，必须重启app才能显示。<br>- **修复**: 根本原因是 `ActiveWorkoutView` 通过构造函数参数接收 `sessionState`，而不是自己通过 `ref.watch()` 监听 provider。修改为让 `ActiveWorkoutView` 直接监听 `workoutSessionProvider`，确保状态变化时UI正确刷新。 |
@@ -218,5 +219,5 @@ abstract class SyncService {
 | **v1.2.1** | 2026-02-21 | Performance | **性能优化**<br>- **N+1 查询修复**: 在 `database.dart` 添加 JOIN 聚合查询方法，重构 `exercise_records_list.dart` 和 `day_detail_card.dart` 使用批量查询，查询次数从 32+ 次降至 2-3 次。<br>- **日历构建优化**: 在 `providers.dart` 添加 `sessionsByDateProvider` 索引 Provider，将日历查找复杂度从 O(Days × Sessions) 降为 O(1)。<br>- **依赖清理**: 移除未使用的 `shared_preferences` 依赖，减小包体积。 |
 | **v1.2.0** | 2026-02-21 | Refactoring | **全架构重构与代码优化**<br>- **架构分层 (Phase 1)**: 实现 Plan/Session Repository 模式，UI层彻底解耦数据库。<br>- **大文件拆分 (Phase 2)**: 重构 `plan_page` (-82%), `calendar_page` (-72%), `today_page` (-92%)，提取了 `plan_selector`, `day_detail_card`, `active_workout_view` 等10+个独立组件。<br>- **代码复用 (Phase 3/4)**: 封装 `entity_mixins.dart` (JSON序列化), `AsyncValueBuilder` (Provider简化), `AppThemeConfig` (主题配置)。<br>- **清理**: 删除冗余代码，合并 Export/Backup 服务，移除死代码约 400 行。 |
 | **v1.1.0** | 2026-02-21 | Feature | **核心功能增强与体验优化**<br>- **数据**: 新增 Glutes (臀) / Abs (腹) 部位及其中文支持，内置预设经典动作。<br>- **Today页面**: 优化卡片视觉（层级式布局，主次分明）；简化交互流程（New Session 直接添加动作，自动保存，一键完成）；支持点击条目查看/编辑详情。<br>- **Calendar页面**: 统一卡片视觉风格；支持点击日期展开查看及编辑历史记录；优化热力图逻辑。<br>- **Plan页面**: 优化自定义计划创建流程，新增可视化设置弹窗（支持颜色标记部位）。<br>- **Analysis**: 恢复时间显示精确度提升至小时 (Days + Hours)。 |
-| | 2026-02-21 | Bugfix | **稳定性与细节修复**<br>- **编译/运行**: 修复 table_calendar 依赖及 Drift 类型错误；修复 Theme 重构后的兼容性问题。<br>- **UI/UX**: 修复 Plan 页面颜色对比度问题；优化字体大小与颜色规范。<br>- **逻辑**: 修复新建项目刷新延迟；检测并阻止重复动作名称；修复 Session 归组逻辑。<br>- **国际化**: 补全缺失的中英文翻译键值。 |
+|  | 2026-02-21 | Bugfix | **稳定性与细节修复**<br>- **编译/运行**: 修复 table_calendar 依赖及 Drift 类型错误；修复 Theme 重构后的兼容性问题。<br>- **UI/UX**: 修复 Plan 页面颜色对比度问题；优化字体大小与颜色规范。<br>- **逻辑**: 修复新建项目刷新延迟；检测并阻止重复动作名称；修复 Session 归组逻辑。<br>- **国际化**: 补全缺失的中英文翻译键值。 |
 | **v1.0.0** | 2026-02-20 | MVP | **初始版本**<br>- 基础功能上线：训练记录 (Today)、日历视图 (Calendar)、数据分析 (Analysis)、计划管理 (Plan)。 |

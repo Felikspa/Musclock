@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../providers/providers.dart';
 
@@ -26,6 +27,7 @@ class _PlanSelectorState extends ConsumerState<PlanSelector> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final presetPlans = ['PPL', 'Upper/Lower', 'Bro Split'];
     final plansAsync = ref.watch(plansProvider);
 
@@ -58,7 +60,7 @@ class _PlanSelectorState extends ConsumerState<PlanSelector> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Select Training Plan',
+                l10n.selectTrainingPlan,
                 style: TextStyle(
                   color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
                   fontSize: 16,

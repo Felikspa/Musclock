@@ -25,9 +25,11 @@ class ExerciseRecordCard extends StatelessWidget {
     final bodyPartName = exercise.bodyPart?.name ?? '';
     final exerciseName = exercise.exercise?.name;
 
-    // Get muscle color
+    // Get muscle color and localized name
     final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
     final muscleColor = AppTheme.getMuscleColor(muscleGroup);
+    final locale = Localizations.localeOf(context).languageCode;
+    final displayBodyPartName = muscleGroup != null ? muscleGroup.getLocalizedName(locale) : bodyPartName;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -60,7 +62,7 @@ class ExerciseRecordCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
-                  bodyPartName,
+                  displayBodyPartName,
                   style: TextStyle(
                     color: muscleColor,
                     fontSize: 12,

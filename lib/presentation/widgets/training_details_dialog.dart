@@ -89,22 +89,28 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
         ),
         const SizedBox(height: 8),
         bodyPartsAsync.when(
-          data: (bodyParts) => Wrap(
-            spacing: 6, runSpacing: 4,
-            children: bodyParts.map((bp) {
-              final bpMuscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
-              final bpColor = AppTheme.getMuscleColor(bpMuscleGroup);
-              final isSelected = _selectedBodyPartId == bp.id;
-              return ChoiceChip(
-                label: Text(bp.name, style: const TextStyle(fontSize: 12)),
-                selected: isSelected,
-                selectedColor: bpColor.withOpacity(0.3),
-                onSelected: (selected) {
-                  setState(() => _selectedBodyPartId = selected ? bp.id : null);
-                },
-              );
-            }).toList(),
-          ),
+          data: (bodyParts) {
+            final locale = Localizations.localeOf(context).languageCode;
+            return Wrap(
+              spacing: 6, runSpacing: 4,
+              children: bodyParts.map((bp) {
+                final bpMuscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
+                final bpColor = AppTheme.getMuscleColor(bpMuscleGroup);
+                final isSelected = _selectedBodyPartId == bp.id;
+                final displayName = bpMuscleGroup != null 
+                    ? bpMuscleGroup.getLocalizedName(locale) 
+                    : bp.name;
+                return ChoiceChip(
+                  label: Text(displayName, style: const TextStyle(fontSize: 12)),
+                  selected: isSelected,
+                  selectedColor: bpColor.withOpacity(0.3),
+                  onSelected: (selected) {
+                    setState(() => _selectedBodyPartId = selected ? bp.id : null);
+                  },
+                );
+              }).toList(),
+            );
+          },
           loading: () => const SizedBox(height: 32, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
           error: (e, s) => Text('Error: $e'),
         ),

@@ -39,7 +39,7 @@ class SettingsPage extends ConsumerWidget {
                 },
               ),
               RadioListTile<ThemeMode>(
-                title: const Text('System'),
+                title: Text(l10n.system),
                 value: ThemeMode.system,
                 groupValue: themeMode,
                 onChanged: (value) {
@@ -79,13 +79,13 @@ class SettingsPage extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.file_download),
                 title: Text(l10n.exportData),
-                subtitle: const Text('Export as JSON'),
+                subtitle: Text(l10n.exportAsJson),
                 onTap: () => _exportData(context, ref),
               ),
               ListTile(
                 leading: const Icon(Icons.backup),
                 title: Text(l10n.backupData),
-                subtitle: const Text('Create backup file'),
+                subtitle: Text(l10n.createBackupFile),
                 onTap: () => _backupData(context, ref),
               ),
             ],
@@ -93,12 +93,12 @@ class SettingsPage extends ConsumerWidget {
 
           // About
           _SettingsSection(
-            title: 'About',
+            title: l10n.about,
             children: [
-              const ListTile(
-                leading: Icon(Icons.info_outline),
-                title: Text('Muscle Clock'),
-                subtitle: Text('Version 1.0.0'),
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('Muscle Clock'),
+                subtitle: Text('${l10n.version} 1.0.0'),
               ),
             ],
           ),

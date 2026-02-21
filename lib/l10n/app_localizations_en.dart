@@ -235,4 +235,162 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get saved => 'Saved';
+
+  @override
+  String get selectTrainingPlan => 'Select Training Plan';
+
+  @override
+  String get schedule => 'Schedule';
+
+  @override
+  String get editPlan => 'Edit Plan';
+
+  @override
+  String get deletePlan => 'Delete Plan';
+
+  @override
+  String deletePlanConfirmation(String planName) {
+    return 'Are you sure you want to delete \"$planName\"?';
+  }
+
+  @override
+  String get addTrainingDay => 'Add Training Day';
+
+  @override
+  String get selectDay => 'Select Day';
+
+  @override
+  String get selectBodyParts => 'Select Body Parts';
+
+  @override
+  String get system => 'System';
+
+  @override
+  String get about => 'About';
+
+  @override
+  String get exportAsJson => 'Export as JSON';
+
+  @override
+  String get createBackupFile => 'Create backup file';
+
+  @override
+  String get version => 'Version';
+
+  @override
+  String get glutes => 'Glutes';
+
+  @override
+  String get abs => 'Abs';
+
+  @override
+  String get tapToSetTraining => 'Tap to set training';
+
+  @override
+  String get squat => 'Squat';
+
+  @override
+  String get benchPress => 'Bench Press';
+
+  @override
+  String get deadlift => 'Deadlift';
+
+  @override
+  String get pullUps => 'Pull-ups';
+
+  @override
+  String get overheadPress => 'Overhead Press';
+
+  @override
+  String get barbellRow => 'Barbell Row';
+
+  @override
+  String get legPress => 'Leg Press';
+
+  @override
+  String get inclineBenchPress => 'Incline Bench Press';
+
+  @override
+  String get latPulldown => 'Lat Pulldown';
+
+  @override
+  String get dumbbellCurl => 'Dumbbell Curl';
+
+  @override
+  String get lateralRaise => 'Lateral Raise';
+
+  @override
+  String get legExtension => 'Leg Extension';
+
+  @override
+  String get legCurl => 'Leg Curl';
+
+  @override
+  String get calfRaise => 'Calf Raise';
+
+  @override
+  String get romanianDeadlift => 'Romanian Deadlift';
+
+  @override
+  String get hipThrust => 'Hip Thrust';
+
+  @override
+  String get lunges => 'Lunges';
+
+  @override
+  String get dips => 'Dips';
+
+  @override
+  String get pushUps => 'Push-ups';
+
+  @override
+  String get dumbbellFly => 'Dumbbell Fly';
+
+  @override
+  String get cableCrossover => 'Cable Crossover';
+
+  @override
+  String get declineBenchPress => 'Decline Bench Press';
+
+  @override
+  String get dumbbellRow => 'Dumbbell Row';
+
+  @override
+  String get seatedCableRow => 'Seated Cable Row';
+
+  @override
+  String get tBarRow => 'T-Bar Row';
+
+  @override
+  String get dumbbellShoulderPress => 'Dumbbell Shoulder Press';
+
+  @override
+  String get frontRaise => 'Front Raise';
+
+  @override
+  String get rearDeltFly => 'Rear Delt Fly';
+
+  @override
+  String get facePull => 'Face Pull';
+
+  @override
+  String get shrugs => 'Shrugs';
+
+  @override
+  String get barbellCurl => 'Barbell Curl';
+
+  @override
+  String get hammerCurl => 'Hammer Curl';
+
+  @override
+  String get tricepPushdown => 'Tricep Pushdown';
+
+  @override
+  String get tricepDips => 'Tricep Dips';
+
+  @override
+  String get skullCrusher => 'Skull Crusher';
+
+  @override
+  String get preacherCurl => 'Preacher Curl';
 }

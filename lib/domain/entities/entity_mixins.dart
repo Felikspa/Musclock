@@ -23,14 +23,6 @@ mixin EntityCopyWithMixin<T> {
   });
 }
 
-/// Mixin providing common factory functionality for entities
-mixin EntityFactoryMixin<T> {
-  /// Create entity from JSON map
-  static T fromJson(Map<String, dynamic> json, T Function(Map<String, dynamic>) factory) {
-    return factory(json);
-  }
-}
-
 /// Extension to simplify JSON parsing for entities
 extension EntityJsonParser on Map<String, dynamic> {
   /// Parse a string or return default

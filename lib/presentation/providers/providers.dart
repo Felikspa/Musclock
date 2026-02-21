@@ -104,6 +104,12 @@ final customPlanByNameProvider = Provider.family<TrainingPlan?, String>((ref, pl
   );
 });
 
+// Global provider for plan items that can be invalidated from anywhere
+final planItemsProvider = FutureProvider.family<List<PlanItem>, String>((ref, planId) async {
+  final repo = ref.watch(planRepositoryProvider);
+  return repo.getPlanItemsByPlan(planId);
+});
+
 // Settings Providers - Use Flutter's ThemeMode
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 final localeProvider = StateProvider<String>((ref) => 'en');

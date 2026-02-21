@@ -15,7 +15,7 @@ class PlanRepository {
 
   Future<void> insertPlan(TrainingPlansCompanion plan) => _db.insertPlan(plan);
 
-  Future<bool> updatePlan(TrainingPlansCompanion plan) => _db.updatePlan(plan);
+  Future<int> updatePlan(TrainingPlansCompanion plan) => _db.updatePlan(plan);
 
   Future<int> deletePlan(String id) => _db.deletePlan(id);
 

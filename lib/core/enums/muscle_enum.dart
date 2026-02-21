@@ -10,8 +10,23 @@ enum MuscleGroup {
 
   final String english;
   final String chinese;
-  
+
   const MuscleGroup(this.english, this.chinese);
+
+  String getName(bool isChinese) {
+    return isChinese ? chinese : english;
+  }
+
+  // Get translated name based on locale code
+  String getLocalizedName(String locale) {
+    return locale.startsWith('zh') ? chinese : english;
+  }
+
+  // Get English name
+  String get englishName => english;
+
+  // Get Chinese name
+  String get chineseName => chinese;
   
   // Base recovery time in hours
   int get baseRecoveryHours {
