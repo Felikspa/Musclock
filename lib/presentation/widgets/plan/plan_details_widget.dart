@@ -49,7 +49,7 @@ class PlanDetailsWidget extends ConsumerWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           ...schedule.entries.map((entry) => _buildScheduleRow(entry.key, entry.value)),
         ],
       ),
@@ -58,7 +58,7 @@ class PlanDetailsWidget extends ConsumerWidget {
 
   Widget _buildScheduleRow(int dayOfWeek, List<MuscleGroup> muscles) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           SizedBox(
@@ -132,11 +132,11 @@ class PlanDetailsWidget extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           itemsAsync.when(
             data: (items) => items.isEmpty
                 ? _buildEmptyState(context, ref, customPlan)
-                : _buildItemsList(context, ref, items, customPlan.id),
+                : _buildItemsList(context, ref, items, customPlan.id, customPlan.cycleLengthDays),
             loading: () => const CircularProgressIndicator(),
             error: (e, s) => Text('Error: $e'),
           ),
@@ -159,26 +159,67 @@ class PlanDetailsWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildItemsList(BuildContext context, WidgetRef ref, List<PlanItem> items, String planId) {
+  Widget _buildItemsList(BuildContext context, WidgetRef ref, List<PlanItem> items, String planId, int cycleLengthDays) {
+    // Create a map for quick lookup of existing items
+    final itemsMap = {for (var item in items) item.dayIndex: item};
+    
     return Column(
       children: [
-        ...items.map((item) => CustomPlanDayItem(
-          planItem: item,
-          isDark: isDark,
-          l10n: l10n,
-          onDelete: () async {
-            final repo = ref.read(planRepositoryProvider);
-            await repo.deletePlanItem(item.id);
-            ref.invalidate(_planItemsProvider(item.planId));
-          },
-        )),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () => _showAddPlanItemDialog(context, ref, planId, 7),
-          icon: const Icon(Icons.add),
-          label: const Text('Add Day'),
-        ),
+        // Generate rows for all days in the cycle
+        for (int dayIndex = 0; dayIndex < cycleLengthDays; dayIndex++)
+          if (itemsMap.containsKey(dayIndex))
+            CustomPlanDayItem(
+              planItem: itemsMap[dayIndex]!,
+              isDark: isDark,
+              l10n: l10n,
+            )
+          else
+            // Rest day - show day without any body parts
+            _buildRestDayRow(dayIndex),
       ],
+    );
+  }
+
+  Widget _buildRestDayRow(int dayIndex) {
+    // Get the gray color for rest
+    final restColor = AppTheme.getMuscleColor(MuscleGroup.rest);
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              'Day ${dayIndex + 1}',
+              style: TextStyle(
+                color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          // Use Wrap like other muscle chips to avoid expanding
+          Wrap(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: restColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  l10n.rest,
+                  style: TextStyle(
+                    color: restColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

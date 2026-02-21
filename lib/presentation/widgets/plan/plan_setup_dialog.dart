@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' show Value;
 import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/database/database.dart';
@@ -96,6 +97,50 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
     });
   }
 
+  Future<void> _showDeleteConfirmation(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Plan'),
+        content: Text('Are you sure you want to delete "${widget.planName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && _currentPlanId != null) {
+      final repo = ref.read(planRepositoryProvider);
+      // Delete all plan items first
+      final items = await repo.getPlanItemsByPlan(_currentPlanId!);
+      for (var item in items) {
+        await repo.deletePlanItem(item.id);
+      }
+      // Then delete the plan
+      await repo.deletePlan(_currentPlanId!);
+      
+      // Refresh providers
+      ref.invalidate(plansProvider);
+      
+      // If this was the selected plan, clear selection
+      if (ref.read(selectedPlanProvider) == widget.planName) {
+        ref.read(selectedPlanProvider.notifier).state = 'PPL';
+      }
+      
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
   Future<void> _savePlan() async {
     if (_nameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -107,12 +152,20 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
     final repo = ref.read(planRepositoryProvider);
 
     // Insert or update the plan
-    await repo.insertPlan(TrainingPlansCompanion.insert(
-      id: _currentPlanId!,
-      name: _nameController.text,
-      cycleLengthDays: _cycleLength,
-      createdAt: DateTime.now().toUtc(),
-    ));
+    if (_isNewPlan) {
+      await repo.insertPlan(TrainingPlansCompanion.insert(
+        id: _currentPlanId!,
+        name: _nameController.text,
+        cycleLengthDays: _cycleLength,
+        createdAt: DateTime.now().toUtc(),
+      ));
+    } else {
+      await repo.updatePlan(TrainingPlansCompanion(
+        id: Value(_currentPlanId!),
+        name: Value(_nameController.text),
+        cycleLengthDays: Value(_cycleLength),
+      ));
+    }
 
     // Save all day configs
     for (var config in _dayConfigs) {
@@ -208,13 +261,15 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with close button
+            // Header with close button and delete option
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Text(
-                    _nameController.text.isEmpty ? widget.l10n.createPlan : _nameController.text,
+                    _isNewPlan 
+                        ? (_nameController.text.isEmpty ? widget.l10n.createPlan : _nameController.text)
+                        : 'Edit Plan',
                     style: TextStyle(
                       color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
                       fontSize: 20,
@@ -222,12 +277,25 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    ref.invalidate(plansProvider);
-                    Navigator.pop(context);
-                  },
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!_isNewPlan)
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Colors.red.shade400,
+                        ),
+                        onPressed: () => _showDeleteConfirmation(context),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        ref.invalidate(plansProvider);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),

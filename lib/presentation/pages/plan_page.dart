@@ -57,11 +57,20 @@ class _PlanPageState extends ConsumerState<PlanPage> {
                         l10n.plan,
                         style: TextStyle(
                           color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                          fontSize: 28,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          letterSpacing: -1,
+                          letterSpacing: -0.5,
                         ),
                       ),
+                      // Edit button (only show for custom plans)
+                      if (!_isPresetPlan(selectedPlan))
+                        IconButton(
+                          icon: Icon(
+                            Icons.edit,
+                            color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                          ),
+                          onPressed: () => _showEditPlanDialog(context, ref, l10n, isDark, selectedPlan),
+                        ),
                     ],
                   ),
                 ),
@@ -73,9 +82,10 @@ class _PlanPageState extends ConsumerState<PlanPage> {
                     ref.read(selectedPlanProvider.notifier).state = plan;
                   },
                   isDark: isDark,
+                  onCreatePlan: () => _showCreatePlanDialog(context, ref, l10n, isDark),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
                 // Plan Details
                 Padding(
@@ -93,14 +103,11 @@ class _PlanPageState extends ConsumerState<PlanPage> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreatePlanDialog(context, ref, l10n, isDark),
-        backgroundColor: AppTheme.accent,
-        foregroundColor: AppTheme.primaryDark,
-        icon: const Icon(Icons.add),
-        label: Text(l10n.createPlan),
-      ),
     );
+  }
+
+  bool _isPresetPlan(String planName) {
+    return ['PPL', 'Upper/Lower', 'Bro Split'].contains(planName);
   }
 
   void _showCreatePlanDialog(BuildContext context, WidgetRef ref, AppLocalizations l10n, bool isDark) {
@@ -115,6 +122,30 @@ class _PlanPageState extends ConsumerState<PlanPage> {
         planId: null,
         planName: null,
         cycleLengthDays: null,
+        l10n: l10n,
+        isDark: isDark,
+      ),
+    );
+  }
+
+  Future<void> _showEditPlanDialog(BuildContext context, WidgetRef ref, AppLocalizations l10n, bool isDark, String planName) async {
+    // Get the plan details
+    final plansAsync = ref.read(plansProvider);
+    final plans = plansAsync.valueOrNull ?? [];
+    final plan = plans.firstWhere(
+      (p) => p.name == planName,
+      orElse: () => throw Exception('Plan not found'),
+    );
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PlanSetupDialog(
+        planId: plan.id,
+        planName: plan.name,
+        cycleLengthDays: plan.cycleLengthDays,
         l10n: l10n,
         isDark: isDark,
       ),

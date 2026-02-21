@@ -10,14 +10,12 @@ class CustomPlanDayItem extends ConsumerWidget {
   final PlanItem planItem;
   final bool isDark;
   final AppLocalizations l10n;
-  final VoidCallback onDelete;
 
   const CustomPlanDayItem({
     super.key,
     required this.planItem,
     required this.isDark,
     required this.l10n,
-    required this.onDelete,
   });
 
   @override
@@ -26,7 +24,7 @@ class CustomPlanDayItem extends ConsumerWidget {
     final bodyPartsAsync = ref.watch(bodyPartsProvider);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           SizedBox(
@@ -83,10 +81,6 @@ class CustomPlanDayItem extends ConsumerWidget {
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            onPressed: onDelete,
           ),
         ],
       ),
