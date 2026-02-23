@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../data/database/database.dart';
 import '../../domain/repositories/session_repository.dart';
+import '../../core/theme/appflowy_theme.dart';
 import '../providers/providers.dart';
+import '../widgets/musclock_app_bar.dart';
 
 class AnalysisPage extends ConsumerWidget {
   const AnalysisPage({super.key});
@@ -15,19 +17,42 @@ class AnalysisPage extends ConsumerWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.analysis),
-          bottom: TabBar(
-            tabs: [
-              Tab(text: l10n.statistics),
-              Tab(text: l10n.heatmap),
-            ],
-          ),
-        ),
-        body: TabBarView(
+        appBar: MusclockAppBar(title: l10n.analysis),
+        body: Column(
           children: [
-            _StatisticsTab(l10n: l10n),
-            _HeatmapTab(l10n: l10n),
+            // Tab Bar
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: TabBar(
+                labelColor: MusclockBrandColors.primary,
+                unselectedLabelColor: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white54
+                    : Colors.black54,
+                indicator: BoxDecoration(
+                  color: MusclockBrandColors.primary.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                dividerColor: Colors.transparent,
+                tabs: [
+                  Tab(text: l10n.statistics),
+                  Tab(text: l10n.heatmap),
+                ],
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _StatisticsTab(l10n: l10n),
+                  _HeatmapTab(l10n: l10n),
+                ],
+              ),
+            ),
           ],
         ),
       ),

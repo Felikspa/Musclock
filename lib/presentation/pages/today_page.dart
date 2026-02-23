@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../data/database/database.dart';
+import '../../core/theme/appflowy_theme.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
 import '../widgets/today_session_view.dart';
 import '../widgets/active_workout_view.dart';
 import '../widgets/add_exercise_sheet.dart';
+import '../widgets/musclock_app_bar.dart';
 
 class TodayPage extends ConsumerWidget {
   const TodayPage({super.key});
@@ -33,9 +35,7 @@ class TodayPage extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.today),
-      ),
+      appBar: MusclockAppBar(title: l10n.today),
       body: sessionState.isActive
           ? const ActiveWorkoutView()
           : todaySessions.isNotEmpty
@@ -43,16 +43,21 @@ class TodayPage extends ConsumerWidget {
               : _NoWorkoutView(bodyPartsAsync: bodyPartsAsync, l10n: l10n),
       floatingActionButton: sessionState.isActive
           ? null  // No FAB when session is active - auto-save on add
-          : FloatingActionButton.extended(
-              onPressed: () async {
-                // Start session and show add exercise dialog
-                await ref.read(workoutSessionProvider.notifier).startNewSession();
-                if (context.mounted) {
-                  _showAddExerciseSheet(context, ref, l10n);
-                }
-              },
-              icon: const Icon(Icons.add),
-              label: Text(l10n.newSession),
+          : Padding(
+              // 添加底部内边距，避免 FAB 被 NavigationBar 遮挡
+              padding: const EdgeInsets.only(bottom: 80),
+              child: FloatingActionButton.extended(
+                backgroundColor: MusclockBrandColors.primary,
+                onPressed: () async {
+                  // Start session and show add exercise dialog
+                  await ref.read(workoutSessionProvider.notifier).startNewSession();
+                  if (context.mounted) {
+                    _showAddExerciseSheet(context, ref, l10n);
+                  }
+                },
+                icon: const Icon(Icons.add),
+                label: Text(l10n.newSession),
+              ),
             ),
     );
   }

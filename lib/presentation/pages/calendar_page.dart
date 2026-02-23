@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/appflowy_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../widgets/calendar/day_detail_card.dart';
+import '../widgets/musclock_app_bar.dart';
 
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key});
@@ -26,10 +28,47 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
     final sessionsAsync = ref.watch(sessionsProvider);
 
+    // Get colors from theme or use fallback
+    Color backgroundColor;
+    Color textPrimary;
+    Color textSecondary;
+    Color textTertiary;
+    Color accentColor = MusclockBrandColors.primary;
+
+    try {
+      backgroundColor = isDark
+          ? const Color(0xFF23262B)
+          : Colors.white;
+      textPrimary = isDark
+          ? Colors.white
+          : Colors.black87;
+      textSecondary = isDark
+          ? Colors.white70
+          : Colors.black54;
+      textTertiary = isDark
+          ? Colors.white38
+          : Colors.black45;
+    } catch (e) {
+      backgroundColor = isDark
+          ? const Color(0xFF1A1A1A)
+          : Colors.white;
+      textPrimary = isDark
+          ? Colors.white
+          : Colors.black87;
+      textSecondary = isDark
+          ? Colors.white70
+          : Colors.black54;
+      textTertiary = isDark
+          ? Colors.white38
+          : Colors.black45;
+    }
+
     return Scaffold(
-      backgroundColor: isDark ? AppTheme.primaryDark : AppTheme.primaryLight,
+      backgroundColor: backgroundColor,
+      appBar: MusclockAppBar(title: l10n.calendar),
       body: SafeArea(
         child: GestureDetector(
           onHorizontalDragEnd: (details) {
@@ -50,20 +89,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Muscle Clock',
-                  style: TextStyle(
-                    color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -1,
-                  ),
-                ),
-              ),
-              
               // Calendar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -90,26 +115,26 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                   calendarStyle: CalendarStyle(
                     outsideDaysVisible: false,
                     defaultTextStyle: TextStyle(
-                      color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                      color: textPrimary,
                     ),
                     weekendTextStyle: TextStyle(
-                      color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                      color: textSecondary,
                     ),
                     todayDecoration: BoxDecoration(
-                      border: Border.all(color: AppTheme.accent, width: 1),
+                      border: Border.all(color: accentColor, width: 1),
                       shape: BoxShape.circle,
                     ),
-                    todayTextStyle: const TextStyle(color: AppTheme.accent),
-                    selectedDecoration: const BoxDecoration(
-                      color: AppTheme.accent,
+                    todayTextStyle: TextStyle(color: accentColor),
+                    selectedDecoration: BoxDecoration(
+                      color: accentColor,
                       shape: BoxShape.circle,
                     ),
-                    selectedTextStyle: const TextStyle(
-                      color: AppTheme.primaryDark,
+                    selectedTextStyle: TextStyle(
+                      color: isDark ? Colors.black : Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
-                    markerDecoration: const BoxDecoration(
-                      color: AppTheme.accent,
+                    markerDecoration: BoxDecoration(
+                      color: accentColor,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -117,43 +142,43 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                     formatButtonVisible: false,
                     titleCentered: true,
                     titleTextStyle: TextStyle(
-                      color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                      color: textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
                     leftChevronIcon: Icon(
                       Icons.chevron_left,
-                      color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                      color: textPrimary,
                     ),
                     rightChevronIcon: Icon(
                       Icons.chevron_right,
-                      color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+                      color: textPrimary,
                     ),
                   ),
                   daysOfWeekStyle: DaysOfWeekStyle(
                     weekdayStyle: TextStyle(
-                      color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                      color: textTertiary,
                     ),
                     weekendStyle: TextStyle(
-                      color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+                      color: textTertiary,
                     ),
                   ),
                   calendarBuilders: CalendarBuilders(
                     defaultBuilder: (context, day, focusedDay) {
-                      return _buildCalendarDay(context, day);
+                      return _buildCalendarDay(context, day, accentColor: accentColor);
                     },
                     todayBuilder: (context, day, focusedDay) {
-                      return _buildCalendarDay(context, day, isToday: true);
+                      return _buildCalendarDay(context, day, isToday: true, accentColor: accentColor);
                     },
                     selectedBuilder: (context, day, focusedDay) {
-                      return _buildCalendarDay(context, day, isSelected: true);
+                      return _buildCalendarDay(context, day, isSelected: true, accentColor: accentColor);
                     },
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Day Detail Card
               Expanded(
                 child: sessionsAsync.when(
@@ -166,7 +191,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                           s.startTime.month == _selectedDay!.month &&
                           s.startTime.day == _selectedDay!.day;
                     }).toList();
-                    
+
                     return DayDetailCard(
                       date: _selectedDay!,
                       sessions: daySessions,
@@ -184,39 +209,44 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  Widget _buildCalendarDay(BuildContext context, DateTime day, {bool isToday = false, bool isSelected = false}) {
+  Widget _buildCalendarDay(BuildContext context, DateTime day, {bool isToday = false, bool isSelected = false, Color accentColor = MusclockBrandColors.primary}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sessionsByDate = ref.watch(sessionsByDateProvider);
-    
+
     // Normalize the day to date only (remove time)
     final normalizedDay = DateTime(day.year, day.month, day.day);
     final daySessions = sessionsByDate[normalizedDay] ?? [];
     final hasWorkout = daySessions.isNotEmpty;
-    
+
     // Get primary muscle group color
     Color? backgroundColor;
     if (hasWorkout && daySessions.isNotEmpty) {
-      backgroundColor = AppTheme.accent.withOpacity(0.3);
+      backgroundColor = accentColor.withOpacity(0.3);
     }
-    
+
+    Color textColor;
+    if (isSelected) {
+      textColor = isDark ? Colors.black : Colors.white;
+    } else {
+      textColor = isDark ? Colors.white : Colors.black87;
+    }
+
     return Container(
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isSelected 
-            ? AppTheme.accent 
+        color: isSelected
+            ? accentColor
             : backgroundColor ?? Colors.transparent,
         shape: BoxShape.circle,
         border: isToday && !isSelected
-            ? Border.all(color: AppTheme.accent, width: 1)
+            ? Border.all(color: accentColor, width: 1)
             : null,
       ),
       child: Center(
         child: Text(
           '${day.day}',
           style: TextStyle(
-            color: isSelected 
-                ? AppTheme.primaryDark 
-                : isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
+            color: textColor,
             fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -224,4 +254,3 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 }
-

@@ -6,28 +6,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'data/database/database.dart';
 import 'presentation/providers/providers.dart';
+import 'presentation/providers/settings_storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize settings storage (SharedPreferences)
+  await SettingsStorage.init();
   
   // Ignore SSL certificate errors in debug mode
   if (kDebugMode) {
     HttpOverrides.global = _MyHttpOverrides();
   }
 
-  // Initialize Supabase
-  if (CloudConfig.isConfigured) {
-    try {
-      await Supabase.initialize(
-        url: CloudConfig.supabaseUrl,
-        anonKey: CloudConfig.supabaseAnonKey,
-      );
-      debugPrint('[DEBUG] Supabase initialized successfully');
-    } catch (e) {
-      debugPrint('[DEBUG] Supabase initialization failed: $e');
-    }
-  } else {
-    debugPrint('[DEBUG] Supabase configuration missing, skipping initialization');
+  // Initialize Supabase (even if not configured, to prevent crashes when accessing Supabase.instance)
+  // When not configured, use placeholder values that will fail gracefully
+  try {
+    final url = CloudConfig.supabaseUrl.isNotEmpty 
+        ? CloudConfig.supabaseUrl 
+        : 'https://placeholder.supabase.co';
+    final key = CloudConfig.supabaseAnonKey.isNotEmpty 
+        ? CloudConfig.supabaseAnonKey 
+        : 'placeholder';
+    
+    await Supabase.initialize(
+      url: url,
+      anonKey: key,
+    );
+    debugPrint('[DEBUG] Supabase initialized successfully');
+  } catch (e) {
+    debugPrint('[DEBUG] Supabase initialization failed: $e');
   }
   
   debugPrint('[DEBUG] Starting app initialization...');

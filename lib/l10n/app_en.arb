@@ -156,5 +156,7 @@
   "tricepPushdown": "Tricep Pushdown",
   "tricepDips": "Tricep Dips",
   "skullCrusher": "Skull Crusher",
-  "preacherCurl": "Preacher Curl"
+  "preacherCurl": "Preacher Curl",
+  "account": "Account",
+  "notifications": "Notifications"
 }

@@ -456,4 +456,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get preacherCurl => '牧师凳弯举';
+
+  @override
+  String get account => '账号';
+
+  @override
+  String get notifications => '通知';
 }

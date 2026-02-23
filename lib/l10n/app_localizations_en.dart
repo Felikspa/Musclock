@@ -456,4 +456,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get preacherCurl => 'Preacher Curl';
+
+  @override
+  String get account => 'Account';
+
+  @override
+  String get notifications => 'Notifications';
 }

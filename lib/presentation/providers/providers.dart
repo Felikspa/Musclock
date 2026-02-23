@@ -15,6 +15,7 @@ import '../../data/cloud/auth_service.dart';
 import '../../data/cloud/sync_service_impl.dart';
 import '../../data/cloud/providers/auth_state.dart' as app_auth;
 import '../../data/cloud/providers/sync_state.dart';
+import 'settings_storage.dart';
 
 // Database Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -117,9 +118,36 @@ final planItemsProvider = FutureProvider.family<List<PlanItem>, String>((ref, pl
   return repo.getPlanItemsByPlan(planId);
 });
 
-// Settings Providers - Use Flutter's ThemeMode
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
-final localeProvider = StateProvider<String>((ref) => 'en');
+// Settings Providers - Use Flutter's ThemeMode with SharedPreferences persistence
+
+/// ThemeMode StateNotifier with persistence
+class ThemeModeNotifier extends StateNotifier<ThemeMode> {
+  ThemeModeNotifier() : super(SettingsStorage.getThemeMode());
+
+  void setThemeMode(ThemeMode mode) {
+    state = mode;
+    SettingsStorage.setThemeMode(mode);
+  }
+}
+
+/// Locale StateNotifier with persistence
+class LocaleNotifier extends StateNotifier<String> {
+  LocaleNotifier() : super(SettingsStorage.getLocale());
+
+  void setLocale(String locale) {
+    state = locale;
+    SettingsStorage.setLocale(locale);
+  }
+}
+
+// Providers for theme mode and locale
+final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
+  return ThemeModeNotifier();
+});
+
+final localeProvider = StateNotifierProvider<LocaleNotifier, String>((ref) {
+  return LocaleNotifier();
+});
 
 // Plan Page State
 final selectedPlanProvider = StateProvider<String>((ref) => 'PPL');
@@ -173,6 +201,7 @@ class CloudConfig {
 }
 
 /// Supabase Client Provider
+/// Returns the Supabase client (always initialized in main.dart)
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {
   return Supabase.instance.client;
 });
@@ -184,7 +213,8 @@ final authServiceProvider = Provider<AuthService>((ref) {
 
 /// Auth State Provider
 final authStateProvider = StateNotifierProvider<app_auth.AuthStateNotifier, app_auth.AuthState>((ref) {
-  return app_auth.AuthStateNotifier(ref.watch(authServiceProvider));
+  final authService = ref.watch(authServiceProvider);
+  return app_auth.AuthStateNotifier(authService);
 });
 
 /// Cloud Sync Service Provider

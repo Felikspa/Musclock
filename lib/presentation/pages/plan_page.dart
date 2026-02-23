@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/appflowy_theme.dart';
 import '../providers/providers.dart';
+import '../widgets/musclock_app_bar.dart';
 import '../widgets/plan/plan_selector.dart';
 import '../widgets/plan/plan_details_widget.dart';
 import '../widgets/plan/plan_setup_dialog.dart';
@@ -33,48 +34,48 @@ class _PlanPageState extends ConsumerState<PlanPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final selectedPlan = ref.watch(selectedPlanProvider);
 
+    // Get colors from theme
+    Color backgroundColor;
+    Color cardColor;
+    Color accentColor = MusclockBrandColors.primary;
+
+    try {
+      backgroundColor = isDark ? const Color(0xFF23262B) : Colors.white;
+      cardColor = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5);
+    } catch (e) {
+      backgroundColor = isDark ? const Color(0xFF1A1A1A) : Colors.white;
+      cardColor = isDark ? const Color(0xFF252525) : const Color(0xFFFAFAFA);
+    }
+
     return Scaffold(
-      backgroundColor: isDark ? AppTheme.primaryDark : AppTheme.primaryLight,
+      backgroundColor: backgroundColor,
+      appBar: MusclockAppBar(
+        title: l10n.plan,
+        actions: [
+          // Edit button (only show for custom plans)
+          if (!_isPresetPlan(selectedPlan))
+            IconButton(
+              icon: Icon(
+                Icons.edit,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+              onPressed: () => _showEditPlanDialog(context, ref, l10n, isDark, selectedPlan),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(plansProvider);
           },
-          color: AppTheme.accent,
-          backgroundColor: isDark ? AppTheme.cardDark : AppTheme.cardLight,
+          color: accentColor,
+          backgroundColor: cardColor,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        l10n.plan,
-                        style: TextStyle(
-                          color: isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      // Edit button (only show for custom plans)
-                      if (!_isPresetPlan(selectedPlan))
-                        IconButton(
-                          icon: Icon(
-                            Icons.edit,
-                            color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                          ),
-                          onPressed: () => _showEditPlanDialog(context, ref, l10n, isDark, selectedPlan),
-                        ),
-                    ],
-                  ),
-                ),
-
+                const SizedBox(height: 8),
                 // Plan Selector
                 PlanSelector(
                   selectedPlan: selectedPlan,
