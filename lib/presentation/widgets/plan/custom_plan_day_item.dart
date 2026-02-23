@@ -61,7 +61,9 @@ class CustomPlanDayItem extends ConsumerWidget {
                       final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
                       return {
                         'name': muscleGroup != null ? muscleGroup.getLocalizedName(locale) : bp.name,
-                        'color': AppTheme.getMuscleColor(muscleGroup),
+                        'color': muscleGroup != null 
+                            ? AppTheme.getMuscleColor(muscleGroup) 
+                            : MuscleGroupHelper.getColorForBodyPart(bp.name),
                       };
                     })
                     .toList();

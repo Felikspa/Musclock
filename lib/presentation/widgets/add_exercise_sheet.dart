@@ -89,18 +89,15 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                 children: [
                   ...bodyParts.map((bp) {
                     final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
-                    final displayName = muscleGroup.getLocalizedName(locale);
-                    return FilterChip(
-                      label: Text(
-                        displayName,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                      ),
-                      selected: _selectedBodyPartIds.contains(bp.id),
-                      onSelected: (selected) {
+                    final displayName = muscleGroup?.getLocalizedName(locale) ?? bp.name;
+                    final color = muscleGroup != null 
+                        ? AppTheme.getMuscleColor(muscleGroup) 
+                        : MuscleGroupHelper.getColorForBodyPart(bp.name);
+                    final isSelected = _selectedBodyPartIds.contains(bp.id);
+                    return GestureDetector(
+                      onTap: () {
                         setState(() {
-                          if (selected) {
-                            _selectedBodyPartIds.add(bp.id);
-                          } else {
+                          if (isSelected) {
                             _selectedBodyPartIds.remove(bp.id);
                             // Also remove exercises from this body part
                             _selectedExerciseIds.removeWhere((exerciseId) {
@@ -115,18 +112,49 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                                   createdAt: DateTime.now(),
                                 ),
                               );
-                              // Check if bodyPartIds JSON array contains bp.id
-                              final ids = _parseBodyPartIds(exercise.bodyPartIds);
-                              return ids.contains(bp.id);
+                              final exerciseBodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+                              return exerciseBodyPartIds.contains(bp.id);
                             });
+                          } else {
+                            _selectedBodyPartIds.add(bp.id);
                           }
                         });
                       },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: isSelected ? color.withOpacity(0.3) : color.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(16),
+                          border: isSelected ? Border.all(color: color, width: 1.5) : null,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Text(
+                            displayName,
+                            style: TextStyle(
+                              fontSize: 16, 
+                              fontWeight: FontWeight.w500, 
+                              color: isSelected ? color : color.withOpacity(0.8)
+                            ),
+                          ),
+                        ),
+                      ),
                     );
                   }).toList(),
-                  ActionChip(
-                    label: Text(widget.l10n.addBodyPart),
-                    onPressed: () => _showAddBodyPartDialog(context),
+                  GestureDetector(
+                    onTap: () => _showAddBodyPartDialog(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade400, width: 1.5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        Icons.add,
+                        size: 20,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
                   ),
                 ],
               );
@@ -413,17 +441,28 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
   }
 
   /// Parse bodyPartIds JSON array string to List<String>
+  /// Handles various formats: JSON array, comma-separated, single value, etc.
   List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
     // Handle NULL or empty values
     if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
     try {
+      // First try JSON array format: ["body_back", "body_glutes"]
       final decoded = jsonDecode(bodyPartIdsJson);
       if (decoded is List) {
         return decoded.map((e) => e.toString()).toList();
       }
+      // If it's a string but not a JSON array, try comma-separated format
+      if (decoded is String) {
+        return _parseBodyPartIds(decoded);
+      }
       return [];
     } catch (e) {
-      return [];
+      // If JSON parsing fails, try comma-separated format: "body_back,body_glutes"
+      if (bodyPartIdsJson.contains(',')) {
+        return bodyPartIdsJson.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      }
+      // Try single value: "body_back"
+      return [bodyPartIdsJson.trim()];
     }
   }
 
@@ -444,19 +483,20 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
             if (bodyPart == null) return const SizedBox.shrink();
 
             final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPart.name);
-            final color = AppTheme.getMuscleColor(muscleGroup);
-            final displayName = muscleGroup.getLocalizedName(locale);
+            final color = muscleGroup != null 
+                ? AppTheme.getMuscleColor(muscleGroup) 
+                : MuscleGroupHelper.getColorForBodyPart(bodyPart.name);
+            final displayName = muscleGroup?.getLocalizedName(locale) ?? bodyPart.name;
 
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: color.withOpacity(0.5), width: 1),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
                 displayName,
-                style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w500),
+                style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
               ),
             );
           }).toList(),

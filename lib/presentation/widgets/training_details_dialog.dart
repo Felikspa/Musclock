@@ -116,9 +116,11 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
               spacing: 6, runSpacing: 4,
               children: bodyParts.map((bp) {
                 final bpMuscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
-                final bpColor = AppTheme.getMuscleColor(bpMuscleGroup);
+                final bpColor = bpMuscleGroup != null 
+                    ? AppTheme.getMuscleColor(bpMuscleGroup) 
+                    : MuscleGroupHelper.getColorForBodyPart(bp.name);
                 final isSelected = _selectedBodyPartId == bp.id;
-                final displayName = bpMuscleGroup.getLocalizedName(locale);
+                final displayName = bpMuscleGroup?.getLocalizedName(locale) ?? bp.name;
                 return ChoiceChip(
                   label: Text(displayName, style: const TextStyle(fontSize: 12)),
                   selected: isSelected,
@@ -205,8 +207,10 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     final List<Widget> bodyPartWidgets = [];
     for (final bp in bodyPartsList) {
       final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
-      final displayName = muscleGroup.getLocalizedName(locale);
-      final color = AppTheme.getMuscleColor(muscleGroup);
+      final displayName = muscleGroup?.getLocalizedName(locale) ?? bp.name;
+      final color = muscleGroup != null 
+          ? AppTheme.getMuscleColor(muscleGroup) 
+          : MuscleGroupHelper.getColorForBodyPart(bp.name);
       bodyPartWidgets.add(_buildBodyPartChip(displayName, color));
     }
     

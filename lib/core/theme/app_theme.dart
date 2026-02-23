@@ -55,6 +55,17 @@ class AppTheme {
     return muscleColors[muscle] ?? accent;
   }
 
+  /// Generate a consistent color from a name (for custom body parts)
+  /// Uses the name's hash code to generate a unique color
+  static Color getColorFromName(String name) {
+    final hash = name.toLowerCase().hashCode;
+    // Generate vibrant colors with good saturation and lightness
+    final hue = (hash % 360).abs().toDouble();
+    final saturation = 0.6 + ((hash ~/ 360) % 20) / 50.0; // 60-80%
+    final lightness = 0.45 + ((hash ~/ 7200) % 20) / 100.0; // 45-65%
+    return HSLColor.fromAHSL(1.0, hue, saturation, lightness).toColor();
+  }
+
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,

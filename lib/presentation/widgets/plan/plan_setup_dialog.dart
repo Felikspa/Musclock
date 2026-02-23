@@ -532,7 +532,9 @@ class _DayRowInline extends StatelessWidget {
               ),
               ...bodyParts.map((bp) {
                 final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
-                final color = AppTheme.getMuscleColor(muscleGroup);
+                final color = muscleGroup != null 
+                    ? AppTheme.getMuscleColor(muscleGroup) 
+                    : MuscleGroupHelper.getColorForBodyPart(bp.name);
                 final isSelected = config.bodyPartIds.contains(bp.id);
                 final displayName = muscleGroup != null
                     ? muscleGroup.getLocalizedName(isChinese ? 'zh' : 'en')

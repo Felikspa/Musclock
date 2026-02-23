@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_time_utils.dart';
+import '../../../data/database/database.dart';
 import '../../../domain/entities/exercise_record_with_session.dart';
 import '../muscle_group_helper.dart';
 import '../exercise_helper.dart';
@@ -22,7 +23,6 @@ class ExerciseRecordCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final exercise = exerciseRecord;
-    final bodyPartName = exercise.bodyPart?.name ?? '';
     final locale = Localizations.localeOf(context).languageCode;
 
     // Get localized exercise name
@@ -31,10 +31,10 @@ class ExerciseRecordCard extends StatelessWidget {
         ? ExerciseHelper.getLocalizedName(rawExerciseName, locale)
         : null;
 
-    // Get muscle color and localized name
-    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
-    final muscleColor = AppTheme.getMuscleColor(muscleGroup);
-    final displayBodyPartName = muscleGroup.getLocalizedName(locale);
+    // Get all body parts for display
+    final bodyPartsList = exercise.bodyParts.isNotEmpty 
+        ? exercise.bodyParts 
+        : (exercise.bodyPart != null ? [exercise.bodyPart!] : <BodyPart>[]);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -59,22 +59,38 @@ class ExerciseRecordCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // Body part color chip
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: muscleColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  displayBodyPartName,
-                  style: TextStyle(
-                    color: muscleColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+              // Body parts color chips - display all
+              if (bodyPartsList.isNotEmpty)
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: bodyPartsList.map((bp) {
+                      final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
+                      final color = muscleGroup != null 
+                          ? AppTheme.getMuscleColor(muscleGroup) 
+                          : MuscleGroupHelper.getColorForBodyPart(bp.name);
+                      final displayName = muscleGroup?.getLocalizedName(locale) ?? bp.name;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          displayName,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
-                ),
-              ),
+                )
+              else
+                const SizedBox.shrink(),
               const SizedBox(width: 8),
               // Exercise name and sets info
               Expanded(
@@ -98,15 +114,17 @@ class ExerciseRecordCard extends StatelessWidget {
                             ),
                             overflow: TextOverflow.ellipsis,
                           ))
-                    : Text(
-                        bodyPartName,
-                        style: TextStyle(
-                          color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    : (bodyPartsList.isNotEmpty
+                        ? Text(
+                            bodyPartsList.first.name,
+                            style: TextStyle(
+                              color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : const SizedBox.shrink()),
               ),
               const SizedBox(width: 8),
               // Time on the right

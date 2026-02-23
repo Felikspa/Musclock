@@ -230,7 +230,7 @@ class _BodyPartStatCard extends ConsumerWidget {
     
     // Get localized body part name
     final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPart.name);
-    final displayBodyPartName = muscleGroup.getLocalizedName(locale);
+    final displayBodyPartName = muscleGroup?.getLocalizedName(locale) ?? bodyPart.name;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),

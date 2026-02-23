@@ -142,7 +142,7 @@ class SavedSessionCard extends ConsumerWidget {
         // Localize body parts
         final localizedBodyParts = data.bodyParts.map((bp) {
           final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp);
-          return muscleGroup.getLocalizedName(locale);
+          return muscleGroup?.getLocalizedName(locale) ?? bp;
         }).toList();
         
         return Column(
@@ -350,15 +350,16 @@ class ExerciseItemWidget extends StatelessWidget {
     final List<Widget> bodyPartWidgets = [];
     for (final bpName in exercise.bodyParts) {
       final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bpName);
-      final displayName = muscleGroup.getLocalizedName(locale);
-      final color = AppTheme.getMuscleColor(muscleGroup);
+      final displayName = muscleGroup?.getLocalizedName(locale) ?? bpName;
+      final color = muscleGroup != null 
+          ? AppTheme.getMuscleColor(muscleGroup) 
+          : MuscleGroupHelper.getColorForBodyPart(bpName);
       bodyPartWidgets.add(
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: color.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: color, width: 1),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
             displayName,

@@ -149,7 +149,7 @@ class DayDetailCard extends ConsumerWidget {
         // Localize muscle group names
         final localizedNames = snapshot.data!.map((name) {
           final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(name);
-          return muscleGroup.getLocalizedName(locale);
+          return muscleGroup?.getLocalizedName(locale) ?? name;
         }).toList();
         
         return Text(

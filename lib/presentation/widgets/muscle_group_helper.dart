@@ -1,11 +1,14 @@
+import 'package:flutter/material.dart';
 import '../../core/enums/muscle_enum.dart';
+import '../../core/theme/app_theme.dart';
 
 /// Utility class for MuscleGroup related operations
 /// This replaces duplicated _getMuscleGroupByName methods across multiple files
 class MuscleGroupHelper {
   /// Map body part name to MuscleGroup for color display
   /// Handles both English and Chinese names
-  static MuscleGroup getMuscleGroupByName(String name) {
+  /// Returns null for unknown/custom body parts (not rest)
+  static MuscleGroup? getMuscleGroupByName(String name) {
     final lowerName = name.toLowerCase();
     if (lowerName.contains('chest') || lowerName.contains('胸')) {
       return MuscleGroup.chest;
@@ -22,7 +25,20 @@ class MuscleGroupHelper {
     } else if (lowerName.contains('abs') || lowerName.contains('腹')) {
       return MuscleGroup.abs;
     }
-    return MuscleGroup.rest;
+    // Return null for unknown/custom body parts instead of rest
+    return null;
+  }
+
+  /// Get color for a body part name
+  /// For known muscle groups, returns the corresponding color
+  /// For unknown/custom body parts, generates a consistent color based on the name
+  static Color getColorForBodyPart(String name) {
+    final muscleGroup = getMuscleGroupByName(name);
+    if (muscleGroup != null) {
+      return AppTheme.getMuscleColor(muscleGroup);
+    }
+    // Generate a consistent color for unknown/custom body parts
+    return AppTheme.getColorFromName(name);
   }
 
   /// Check if a body part name represents a rest day

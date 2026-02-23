@@ -25,23 +25,23 @@ class ExerciseCard extends ConsumerWidget {
   // Build colored chip for body part display (matching Plan page style)
   Widget _buildMuscleChip(String bodyPartName, String locale) {
     final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
-    final color = AppTheme.getMuscleColor(muscleGroup);
-    final displayName = muscleGroup.getLocalizedName(locale);
+    final color = muscleGroup != null 
+        ? AppTheme.getMuscleColor(muscleGroup) 
+        : MuscleGroupHelper.getColorForBodyPart(bodyPartName);
+    final displayName = muscleGroup?.getLocalizedName(locale) ?? bodyPartName;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.5), width: 1.5),
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         displayName,
         style: TextStyle(
           color: color,
           fontSize: 12,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -66,8 +66,16 @@ class ExerciseCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Body Part with colored border (like Plan page)
-                      if (exerciseInSession.bodyPart != null)
+                      // Body Parts with colored border (like Plan page) - display all
+                      if (exerciseInSession.bodyParts.isNotEmpty)
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: exerciseInSession.bodyParts
+                              .map((bp) => _buildMuscleChip(bp.name, locale))
+                              .toList(),
+                        )
+                      else if (exerciseInSession.bodyPart != null)
                         _buildMuscleChip(exerciseInSession.bodyPart!.name, locale),
                       // Exercise Name (only show if exercise exists)
                       if (exerciseInSession.exercise != null)
