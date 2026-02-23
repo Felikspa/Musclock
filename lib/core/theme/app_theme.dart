@@ -19,6 +19,7 @@ class AppTheme {
   // Accent color - Mint green for highlights
   static const Color accent = AppThemeConfig.accent;
   static const Color accentLight = AppThemeConfig.accentLight;
+  static const Color executing = AppThemeConfig.executing;  // Gold for executing plan highlight
 
   // Text colors - Dark theme
   static const Color textPrimary = AppThemeConfig.textPrimary;

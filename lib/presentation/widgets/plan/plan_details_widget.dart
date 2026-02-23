@@ -24,17 +24,21 @@ class PlanDetailsWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final schedule = WorkoutTemplates.getSchedule(planName);
-    
+
     if (schedule != null) {
-      return _buildPresetPlan(context, schedule);
+      return _buildPresetPlan(context, ref, schedule);
     }
-    
+
     return _buildCustomPlan(context, ref);
   }
 
-  Widget _buildPresetPlan(BuildContext context, Map<int, List<MuscleGroup>> schedule) {
+  Widget _buildPresetPlan(BuildContext context, WidgetRef ref, Map<int, List<MuscleGroup>> schedule) {
     final locale = Localizations.localeOf(context).languageCode;
-    final isChinese = locale.startsWith('zh');
+
+    // Get active preset plan for highlighting
+    final activePresetPlan = ref.watch(activePresetPlanProvider);
+    final activePresetDay = ref.watch(activePresetDayIndexProvider);
+    final isThisPresetActive = activePresetPlan == planName;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -54,15 +58,29 @@ class PlanDetailsWidget extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...schedule.entries.map((entry) => _buildScheduleRow(context, entry.key, entry.value)),
+          ...schedule.entries.map((entry) => _buildScheduleRow(
+            context,
+            entry.key,
+            entry.value,
+            isHighlighted: isThisPresetActive && entry.key == activePresetDay,
+          )),
         ],
       ),
     );
   }
 
-  Widget _buildScheduleRow(BuildContext context, int dayOfWeek, List<MuscleGroup> muscles) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+  Widget _buildScheduleRow(BuildContext context, int dayOfWeek, List<MuscleGroup> muscles, {bool isHighlighted = false}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        // Highlighted: border + background
+        color: isHighlighted ? AppTheme.accent.withOpacity(0.08) : null,
+        border: isHighlighted
+            ? Border.all(color: AppTheme.accent, width: 2)
+            : null,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
         children: [
           SizedBox(
@@ -70,8 +88,11 @@ class PlanDetailsWidget extends ConsumerWidget {
             child: Text(
               _getDayName(dayOfWeek),
               style: TextStyle(
-                color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                color: isHighlighted
+                    ? AppTheme.accent
+                    : isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
                 fontSize: 14,
+                fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           ),
@@ -138,9 +159,7 @@ class PlanDetailsWidget extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           itemsAsync.when(
-            data: (items) => items.isEmpty
-                ? _buildEmptyState(context, ref, customPlan)
-                : _buildItemsList(context, ref, items, customPlan.id, customPlan.cycleLengthDays),
+            data: (items) => _buildItemsList(context, ref, items, customPlan.id, customPlan.cycleLengthDays),
             loading: () => const CircularProgressIndicator(),
             error: (e, s) => Text('Error: $e'),
           ),
@@ -149,24 +168,26 @@ class PlanDetailsWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, WidgetRef ref, TrainingPlan customPlan) {
-    return Column(
-      children: [
-        Text(l10n.noData, style: TextStyle(color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight)),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () => _showAddPlanItemDialog(context, ref, customPlan.id, customPlan.cycleLengthDays),
-          icon: const Icon(Icons.add),
-          label: Text(l10n.addExercise),
-        ),
-      ],
-    );
-  }
-
   Widget _buildItemsList(BuildContext context, WidgetRef ref, List<PlanItem> items, String planId, int cycleLengthDays) {
     // Create a map for quick lookup of existing items
     final itemsMap = {for (var item in items) item.dayIndex: item};
-    
+
+    // Get active plan info for highlighting
+    final activePlanAsync = ref.watch(activePlanProvider);
+    final activePlanName = activePlanAsync.when(
+      data: (plan) => plan?.name,
+      loading: () => null,
+      error: (_, __) => null,
+    );
+    final currentDay = activePlanAsync.when(
+      data: (plan) => plan?.currentDayIndex ?? 1,
+      loading: () => 1,
+      error: (_, __) => 1,
+    );
+
+    // Check if this plan is active and should show highlighting
+    final isThisPlanActive = activePlanName == planName;
+
     return Column(
       children: [
         // Generate rows for all days in the cycle
@@ -176,20 +197,30 @@ class PlanDetailsWidget extends ConsumerWidget {
               planItem: itemsMap[dayIndex]!,
               isDark: isDark,
               l10n: l10n,
+              isHighlighted: isThisPlanActive && (dayIndex + 1) == currentDay,
             )
           else
             // Rest day - show day without any body parts
-            _buildRestDayRow(dayIndex),
+            _buildRestDayRow(dayIndex, isHighlighted: isThisPlanActive && (dayIndex + 1) == currentDay),
       ],
     );
   }
 
-  Widget _buildRestDayRow(int dayIndex) {
+  Widget _buildRestDayRow(int dayIndex, {bool isHighlighted = false}) {
     // Get the gray color for rest
     final restColor = AppTheme.getMuscleColor(MuscleGroup.rest);
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        // Highlighted: border + background
+        color: isHighlighted ? AppTheme.accent.withOpacity(0.08) : null,
+        border: isHighlighted
+            ? Border.all(color: AppTheme.accent, width: 2)
+            : null,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
         children: [
           SizedBox(
@@ -197,8 +228,11 @@ class PlanDetailsWidget extends ConsumerWidget {
             child: Text(
               'Day ${dayIndex + 1}',
               style: TextStyle(
-                color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                color: isHighlighted
+                    ? AppTheme.accent
+                    : isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
                 fontSize: 14,
+                fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           ),

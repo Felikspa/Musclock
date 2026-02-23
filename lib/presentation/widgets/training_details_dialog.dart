@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:drift/drift.dart' show Value;
+import 'dart:convert';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import 'muscle_group_helper.dart';
+import 'exercise_helper.dart';
 import 'training_set_data.dart';
 import '../../data/database/database.dart';
 import '../../domain/entities/exercise_record_with_session.dart';
@@ -44,13 +46,32 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     _exerciseNameController = TextEditingController(
       text: widget.exerciseRecord.exercise?.name ?? '',
     );
-    _selectedBodyPartId = widget.exerciseRecord.exercise?.bodyPartId;
+    // Get primary body part ID from bodyPartIds array
+    if (widget.exerciseRecord.exercise != null) {
+      final bodyPartIds = _parseBodyPartIds(widget.exerciseRecord.exercise!.bodyPartIds);
+      _selectedBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
+    }
   }
 
   @override
   void dispose() {
     _exerciseNameController.dispose();
     super.dispose();
+  }
+
+  /// Parse bodyPartIds JSON array string to List<String>
+  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
+    // Handle NULL or empty values
+    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
+    try {
+      final decoded = jsonDecode(bodyPartIdsJson);
+      if (decoded is List) {
+        return decoded.map((e) => e.toString()).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 
   // ===== Helper methods for editing =====
@@ -97,9 +118,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                 final bpMuscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
                 final bpColor = AppTheme.getMuscleColor(bpMuscleGroup);
                 final isSelected = _selectedBodyPartId == bp.id;
-                final displayName = bpMuscleGroup != null 
-                    ? bpMuscleGroup.getLocalizedName(locale) 
-                    : bp.name;
+                final displayName = bpMuscleGroup.getLocalizedName(locale);
                 return ChoiceChip(
                   label: Text(displayName, style: const TextStyle(fontSize: 12)),
                   selected: isSelected,
@@ -123,7 +142,10 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     final exercisesAsync = ref.watch(exercisesProvider);
     final filteredExercises = exercisesAsync.maybeWhen(
       data: (exercises) => _selectedBodyPartId != null
-          ? exercises.where((e) => e.bodyPartId == _selectedBodyPartId).toList()
+          ? exercises.where((e) {
+              final bodyPartIds = _parseBodyPartIds(e.bodyPartIds);
+              return bodyPartIds.contains(_selectedBodyPartId);
+            }).toList()
           : exercises,
       orElse: () => <Exercise>[],
     );
@@ -172,10 +194,27 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     final bodyPartName = exercise.bodyPart?.name ?? '';
     final timeFormat = DateFormat('HH:mm');
     final dateFormat = DateFormat('yyyy-MM-dd');
+    final locale = Localizations.localeOf(context).languageCode;
 
-    // Get muscle color
-    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
-    final muscleColor = AppTheme.getMuscleColor(muscleGroup);
+    // Get all body parts from the record
+    final bodyPartsList = exercise.bodyParts.isNotEmpty 
+        ? exercise.bodyParts 
+        : (exercise.bodyPart != null ? [exercise.bodyPart!] : <BodyPart>[]);
+    
+    // Get localized body part names and colors
+    final List<Widget> bodyPartWidgets = [];
+    for (final bp in bodyPartsList) {
+      final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
+      final displayName = muscleGroup.getLocalizedName(locale);
+      final color = AppTheme.getMuscleColor(muscleGroup);
+      bodyPartWidgets.add(_buildBodyPartChip(displayName, color));
+    }
+    
+    // Get localized exercise name
+    final rawExerciseName = exercise.exercise?.name;
+    final displayExerciseName = rawExerciseName != null 
+        ? ExerciseHelper.getLocalizedName(rawExerciseName, locale)
+        : null;
 
     return Dialog(
       backgroundColor: widget.isDark ? AppTheme.cardDark : AppTheme.cardLight,
@@ -250,15 +289,23 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Body part - edit mode shows selector
-                    _isEditing ? _buildBodyPartSelector() : _buildBodyPartChip(bodyPartName, muscleColor),
+                    // Body part - edit mode shows selector, non-edit mode shows all body parts
+                    _isEditing 
+                        ? _buildBodyPartSelector() 
+                        : (bodyPartWidgets.isNotEmpty 
+                            ? Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: bodyPartWidgets,
+                              )
+                            : const SizedBox.shrink()),
                     const SizedBox(height: 16),
 
                     // Exercise
                     Text(widget.l10n.exercise, style: TextStyle(color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight, fontSize: 12)),
                     const SizedBox(height: 4),
-                    _isEditing ? _buildExerciseSelector() : (exercise.exercise != null 
-                        ? Text(exercise.exercise!.name,
+                    _isEditing ? _buildExerciseSelector() : (displayExerciseName != null 
+                        ? Text(displayExerciseName,
                             style: TextStyle(color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight, fontSize: 16, fontWeight: FontWeight.w500))
                         : const SizedBox.shrink()),
                     const SizedBox(height: 16),
@@ -284,6 +331,15 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 if (_isEditing) ...[
+                  // Delete button in edit mode
+                  TextButton(
+                    onPressed: _showDeleteConfirmDialog,
+                    child: Text(
+                      widget.l10n.delete,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                  const Spacer(),
                   TextButton(
                     onPressed: () {
                       setState(() {
@@ -296,7 +352,11 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                                 ))
                             .toList();
                         _exerciseNameController.text = widget.exerciseRecord.exercise?.name ?? '';
-                        _selectedBodyPartId = widget.exerciseRecord.exercise?.bodyPartId;
+                        // Get primary body part ID from bodyPartIds array
+                        if (widget.exerciseRecord.exercise != null) {
+                          final bodyPartIds = _parseBodyPartIds(widget.exerciseRecord.exercise!.bodyPartIds);
+                          _selectedBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
+                        }
                       });
                     },
                     child: Text(widget.l10n.cancel),
@@ -509,14 +569,17 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
 
       // Update exercise name and body part if changed
       final newName = _exerciseNameController.text.trim();
-      final newBodyPartId = _selectedBodyPartId ?? widget.exerciseRecord.exercise!.bodyPartId;
+      // Get new bodyPartIds JSON array
+      final newBodyPartIds = _selectedBodyPartId != null 
+          ? '["${_selectedBodyPartId}"]' 
+          : widget.exerciseRecord.exercise!.bodyPartIds;
       
       if (newName != widget.exerciseRecord.exercise!.name || 
-          newBodyPartId != widget.exerciseRecord.exercise!.bodyPartId) {
+          newBodyPartIds != widget.exerciseRecord.exercise!.bodyPartIds) {
         await db.updateExercise(ExercisesCompanion(
           id: Value(widget.exerciseRecord.exercise!.id),
           name: Value(newName),
-          bodyPartId: Value(newBodyPartId),
+          bodyPartIds: Value(newBodyPartIds),
           createdAt: Value(widget.exerciseRecord.exercise!.createdAt),
         ));
       }
@@ -630,6 +693,76 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(widget.l10n.saved),
+            backgroundColor: AppTheme.accent,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Show delete confirmation dialog
+  void _showDeleteConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(widget.l10n.delete),
+        content: Text(widget.l10n.deleteConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(widget.l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _performDelete();
+            },
+            child: Text(
+              widget.l10n.delete,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Perform soft delete
+  Future<void> _performDelete() async {
+    final db = ref.read(databaseProvider);
+
+    try {
+      // Get session ID before deletion
+      final sessionId = widget.exerciseRecord.record.sessionId;
+      
+      // Soft delete the exercise record and cascade delete sets
+      await db.softDeleteExerciseRecordCascade(widget.exerciseRecord.record.id);
+
+      // Check if session has any remaining records (excluding deleted)
+      final remainingRecords = await db.getRecordsBySession(sessionId);
+      
+      // If no remaining records, delete the session
+      if (remainingRecords.isEmpty) {
+        await db.deleteSession(sessionId);
+      }
+
+      // Refresh data
+      ref.invalidate(sessionsProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.l10n.deleteSuccess),
             backgroundColor: AppTheme.accent,
           ),
         );

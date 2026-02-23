@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import '../../core/utils/date_time_utils.dart';
 
 part 'database.g.dart';
 
@@ -22,7 +23,7 @@ class BodyParts extends Table {
 class Exercises extends Table {
   TextColumn get id => text()();
   TextColumn get name => text().withLength(min: 1, max: 100)();
-  TextColumn get bodyPartId => text().references(BodyParts, #id)();
+  TextColumn get bodyPartIds => text().withDefault(const Constant('[]'))(); // JSON array of body part IDs
   DateTimeColumn get createdAt => dateTime()();
   
   @override
@@ -42,7 +43,8 @@ class WorkoutSessions extends Table {
 class ExerciseRecords extends Table {
   TextColumn get id => text()();
   TextColumn get sessionId => text().references(WorkoutSessions, #id)();
-  TextColumn get exerciseId => text().references(Exercises, #id)();
+  TextColumn get exerciseId => text().nullable().references(Exercises, #id)();
+  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
   
   @override
   Set<Column> get primaryKey => {id};
@@ -64,7 +66,11 @@ class TrainingPlans extends Table {
   TextColumn get name => text().withLength(min: 1, max: 100)();
   IntColumn get cycleLengthDays => integer()();
   DateTimeColumn get createdAt => dateTime()();
-  
+  // Execution tracking fields
+  BoolColumn get isActive => boolean().withDefault(const Constant(false))();
+  IntColumn get currentDayIndex => integer().nullable()();
+  DateTimeColumn get startDate => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -84,12 +90,14 @@ class ExerciseRecordWithDetails {
   final ExerciseRecord record;
   final Exercise? exercise;  // Nullable for body-part-only records
   final BodyPart bodyPart;
+  final List<BodyPart> bodyParts; // All body parts for this exercise
   
   ExerciseRecordWithDetails({
     required this.record,
     this.exercise,  // Nullable for body-part-only records
     required this.bodyPart,
-  });
+    List<BodyPart>? bodyParts,
+  }) : bodyParts = bodyParts ?? [bodyPart];
 }
 
 // ============ Database ============
@@ -107,7 +115,85 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 4;
+
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (Migrator m) async {
+        await m.createAll();
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        if (from < 2) {
+          // Add is_deleted column to exercise_records table
+          await m.addColumn(exerciseRecords, exerciseRecords.isDeleted);
+        }
+        if (from < 3) {
+          // Migrate bodyPartId to bodyPartIds
+          // Since we're changing from single string to JSON array, we need custom migration
+          await _migrateBodyPartIdToBodyPartIds();
+        }
+        if (from < 4) {
+          // Add execution tracking fields to TrainingPlans
+          await m.addColumn(trainingPlans, trainingPlans.isActive);
+          await m.addColumn(trainingPlans, trainingPlans.currentDayIndex);
+          await m.addColumn(trainingPlans, trainingPlans.startDate);
+        }
+      },
+    );
+  }
+
+  /// Custom migration to convert bodyPartId (single string) to bodyPartIds (JSON array)
+  Future<void> _migrateBodyPartIdToBodyPartIds() async {
+    try {
+      // First, check if old body_part_id column exists and has data
+      // Use a safe approach: try to get info about the column
+      final result = await customSelect(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='exercises'",
+      ).get();
+      
+      if (result.isEmpty) return;
+      
+      // Try to check if old column exists using PRAGMA (safer approach)
+      final tableInfo = await customSelect(
+        "PRAGMA table_info(exercises)",
+      ).get();
+      
+      final columnNames = tableInfo.map((row) => row.read<String>('name')).toList();
+      final hasOldColumn = columnNames.contains('body_part_id');
+      final hasNewColumn = columnNames.contains('body_part_ids');
+      
+      // If new column doesn't exist, we need to create it first
+      if (!hasNewColumn && hasOldColumn) {
+        // Rename old column to new column name
+        await customStatement(
+          'ALTER TABLE exercises RENAME COLUMN body_part_id TO body_part_ids',
+        );
+      }
+      
+      // Now ensure all records have valid bodyPartIds (not NULL or empty)
+      // Get all exercises and fix any NULL or empty body_part_ids
+      final allExercises = await customSelect(
+        "SELECT id, body_part_ids FROM exercises WHERE body_part_ids IS NULL OR body_part_ids = '' OR body_part_ids = '[]'",
+      ).get();
+      
+      for (final row in allExercises) {
+        final id = row.read<String>('id');
+        final currentValue = row.read<String?>('body_part_ids');
+        
+        // If NULL or empty, set default to empty array
+        final newValue = (currentValue == null || currentValue.isEmpty) 
+            ? '[]' 
+            : currentValue;
+        
+        await (update(exercises)..where((t) => t.id.equals(id)))
+            .write(ExercisesCompanion(bodyPartIds: Value(newValue)));
+      }
+    } catch (e) {
+      // Log error but continue - this shouldn't break the app
+      // On fresh installs, this migration won't do anything
+    }
+  }
 
   // ============ BodyPart Operations ============
   
@@ -136,11 +222,25 @@ class AppDatabase extends _$AppDatabase {
   
   Stream<List<Exercise>> watchAllExercises() => select(exercises).watch();
   
-  Future<List<Exercise>> getExercisesByBodyPart(String bodyPartId) =>
-      (select(exercises)..where((t) => t.bodyPartId.equals(bodyPartId))).get();
+  /// Get exercises by body part (checks if bodyPartIds JSON array contains the bodyPartId)
+  Future<List<Exercise>> getExercisesByBodyPart(String bodyPartId) async {
+    final allExercises = await getAllExercises();
+    return allExercises.where((e) {
+      // Parse bodyPartIds JSON array
+      final ids = parseBodyPartIds(e.bodyPartIds);
+      return ids.contains(bodyPartId);
+    }).toList();
+  }
   
-  Stream<List<Exercise>> watchExercisesByBodyPart(String bodyPartId) =>
-      (select(exercises)..where((t) => t.bodyPartId.equals(bodyPartId))).watch();
+  /// Watch exercises by body part (checks if bodyPartIds JSON array contains the bodyPartId)
+  Stream<List<Exercise>> watchExercisesByBodyPart(String bodyPartId) {
+    return watchAllExercises().map((exerciseList) {
+      return exerciseList.where((e) {
+        final ids = parseBodyPartIds(e.bodyPartIds);
+        return ids.contains(bodyPartId);
+      }).toList();
+    });
+  }
   
   Future<Exercise?> getExerciseById(String id) =>
       (select(exercises)..where((t) => t.id.equals(id))).getSingleOrNull();
@@ -180,17 +280,44 @@ class AppDatabase extends _$AppDatabase {
 
   // ============ ExerciseRecord Operations ============
   
+  /// Get all exercise records (excluding soft-deleted) for a session
   Future<List<ExerciseRecord>> getRecordsBySession(String sessionId) =>
-      (select(exerciseRecords)..where((t) => t.sessionId.equals(sessionId))).get();
+      (select(exerciseRecords)
+        ..where((t) => t.sessionId.equals(sessionId) & t.isDeleted.equals(false)))
+      .get();
   
+  /// Watch all exercise records (excluding soft-deleted) for a session
   Stream<List<ExerciseRecord>> watchRecordsBySession(String sessionId) =>
-      (select(exerciseRecords)..where((t) => t.sessionId.equals(sessionId))).watch();
+      (select(exerciseRecords)
+        ..where((t) => t.sessionId.equals(sessionId) & t.isDeleted.equals(false)))
+      .watch();
+  
+  /// Get all exercise records including deleted (for sync)
+  Future<List<ExerciseRecord>> getAllExerciseRecordsIncludingDeleted() =>
+      select(exerciseRecords).get();
+  
+  /// Soft delete an exercise record
+  Future<int> softDeleteExerciseRecord(String id) =>
+      (update(exerciseRecords)..where((t) => t.id.equals(id)))
+          .write(const ExerciseRecordsCompanion(isDeleted: Value(true)));
+  
+  /// Hard delete an exercise record (for sync from cloud)
+  Future<int> hardDeleteExerciseRecord(String id) =>
+      (delete(exerciseRecords)..where((t) => t.id.equals(id))).go();
   
   Future<int> insertExerciseRecord(ExerciseRecordsCompanion entry) =>
       into(exerciseRecords).insert(entry);
   
   Future<int> deleteExerciseRecord(String id) =>
       (delete(exerciseRecords)..where((t) => t.id.equals(id))).go();
+  
+  /// Soft delete exercise record and cascade delete sets
+  Future<void> softDeleteExerciseRecordCascade(String exerciseRecordId) async {
+    // Soft delete the exercise record
+    await softDeleteExerciseRecord(exerciseRecordId);
+    // Hard delete all associated set records (they don't need soft delete)
+    await deleteSetsByExerciseRecord(exerciseRecordId);
+  }
   
   Future<int> deleteRecordsBySession(String sessionId) =>
       (delete(exerciseRecords)..where((t) => t.sessionId.equals(sessionId))).go();
@@ -240,6 +367,58 @@ class AppDatabase extends _$AppDatabase {
   Future<int> deletePlan(String id) =>
       (delete(trainingPlans)..where((t) => t.id.equals(id))).go();
 
+  Future<bool> isPlanNameExists(String name) async {
+    final query = select(trainingPlans)
+      ..where((t) => t.name.equals(name));
+    final result = await query.get();
+    return result.isNotEmpty;
+  }
+
+  /// Get the currently active (executing) plan
+  Future<TrainingPlan?> getActivePlan() async {
+    final query = select(trainingPlans)
+      ..where((t) => t.isActive.equals(true));
+    return query.getSingleOrNull();
+  }
+
+  /// Set a plan as active (starts execution)
+  /// This will deactivate any other active plans first
+  Future<void> setActivePlan(String planId, int currentDayIndex) async {
+    await transaction(() async {
+      // First, deactivate all plans
+      await (update(trainingPlans)..where((t) => t.isActive.equals(true)))
+          .write(const TrainingPlansCompanion(
+        isActive: Value(false),
+      ));
+
+      // Then activate the selected plan
+      await (update(trainingPlans)..where((t) => t.id.equals(planId)))
+          .write(TrainingPlansCompanion(
+        isActive: const Value(true),
+        currentDayIndex: Value(currentDayIndex),
+        startDate: Value(DateTime.now().toUtc()),
+      ));
+    });
+  }
+
+  /// Deactivate the current active plan (stop execution)
+  Future<void> clearActivePlan() async {
+    await (update(trainingPlans)..where((t) => t.isActive.equals(true)))
+        .write(const TrainingPlansCompanion(
+      isActive: Value(false),
+      currentDayIndex: Value(null),
+      startDate: Value(null),
+    ));
+  }
+
+  /// Update the current day index of the active plan
+  Future<void> updateActivePlanDayIndex(int dayIndex) async {
+    await (update(trainingPlans)..where((t) => t.isActive.equals(true)))
+        .write(TrainingPlansCompanion(
+      currentDayIndex: Value(dayIndex),
+    ));
+  }
+
   // ============ PlanItem Operations ============
   
   Future<List<PlanItem>> getPlanItemsByPlan(String planId) =>
@@ -262,24 +441,73 @@ class AppDatabase extends _$AppDatabase {
 
   // ============ JOIN Queries for Performance Optimization ============
   
+  /// Helper to parse bodyPartIds JSON array
+  List<String> parseBodyPartIds(String? bodyPartIdsJson) {
+    // Handle NULL or empty values
+    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
+    try {
+      final cleaned = bodyPartIdsJson.replaceAll('[', '').replaceAll(']', '').replaceAll('"', '');
+      if (cleaned.isEmpty) return [];
+      return cleaned.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+  
   /// Get all exercise records with exercise and bodyPart data for a session in one query
   /// This eliminates N+1 query problem
   Future<List<ExerciseRecordWithDetails>> getSessionExerciseRecordsWithDetails(String sessionId) async {
-    final query = select(exerciseRecords).join([
-      innerJoin(exercises, exercises.id.equalsExp(exerciseRecords.exerciseId)),
-      innerJoin(bodyParts, bodyParts.id.equalsExp(exercises.bodyPartId)),
-    ])
-      ..where(exerciseRecords.sessionId.equals(sessionId));
+    // Get all exercise records for the session
+    final records = await (select(exerciseRecords)
+      ..where((t) => t.sessionId.equals(sessionId) & t.isDeleted.equals(false)))
+      .get();
     
-    final rows = await query.get();
+    final List<ExerciseRecordWithDetails> results = [];
     
-    return rows.map((row) {
-      return ExerciseRecordWithDetails(
-        record: row.readTable(exerciseRecords),
-        exercise: row.readTable(exercises),
-        bodyPart: row.readTable(bodyParts),
-      );
-    }).toList();
+    for (final record in records) {
+      // Handle body-part-only records (marked with "bodyPart:" prefix)
+      if (record.exerciseId != null && record.exerciseId!.startsWith('bodyPart:')) {
+        final bodyPartId = record.exerciseId!.substring('bodyPart:'.length);
+        final bodyPart = await getBodyPartById(bodyPartId);
+        if (bodyPart != null) {
+          results.add(ExerciseRecordWithDetails(
+            record: record,
+            exercise: null,
+            bodyPart: bodyPart,
+            bodyParts: [bodyPart],
+          ));
+        }
+        continue;
+      }
+      
+      // Get exercise by ID
+      final exercise = await getExerciseById(record.exerciseId ?? '');
+      if (exercise == null) continue;
+      
+      // Get all body parts for this exercise
+      final bodyPartIds = parseBodyPartIds(exercise.bodyPartIds);
+      final bodyPartsList = <BodyPart>[];
+      BodyPart? primaryBodyPart;
+      
+      for (final bpId in bodyPartIds) {
+        final bp = await getBodyPartById(bpId);
+        if (bp != null) {
+          bodyPartsList.add(bp);
+          primaryBodyPart ??= bp;
+        }
+      }
+      
+      if (primaryBodyPart != null) {
+        results.add(ExerciseRecordWithDetails(
+          record: record,
+          exercise: exercise,
+          bodyPart: primaryBodyPart,
+          bodyParts: bodyPartsList,
+        ));
+      }
+    }
+    
+    return results;
   }
   
   /// Get all sets for multiple exercise records in one query
@@ -305,43 +533,62 @@ class AppDatabase extends _$AppDatabase {
     
     final Map<String, List<ExerciseRecordWithDetails>> result = {};
     
-    // First get normal exercise records with JOIN (exclude bodyPart: prefix)
-    final query = select(exerciseRecords).join([
-      innerJoin(exercises, exercises.id.equalsExp(exerciseRecords.exerciseId)),
-      innerJoin(bodyParts, bodyParts.id.equalsExp(exercises.bodyPartId)),
-    ])
-      ..where(exerciseRecords.sessionId.isIn(sessionIds));
+    // Get all exercise records for these sessions (exclude bodyPart: prefix)
+    final allRecords = await (select(exerciseRecords)
+      ..where((t) => t.sessionId.isIn(sessionIds) & 
+                     t.exerciseId.isNotNull() &
+                     t.isDeleted.equals(false)))
+      .get();
     
-    final rows = await query.get();
+    // Also get body-part-only records
+    final bodyPartRecords = await (select(exerciseRecords)
+      ..where((t) => t.sessionId.isIn(sessionIds) & 
+                     t.exerciseId.like('bodyPart:%') &
+                     t.isDeleted.equals(false)))
+      .get();
     
-    for (final row in rows) {
-      final record = row.readTable(exerciseRecords);
-      result.putIfAbsent(record.sessionId, () => []).add(ExerciseRecordWithDetails(
-        record: record,
-        exercise: row.readTable(exercises),
-        bodyPart: row.readTable(bodyParts),
-      ));
+    // Process normal exercise records
+    for (final record in allRecords) {
+      if (record.exerciseId == null) continue;
+      
+      final exercise = await getExerciseById(record.exerciseId!);
+      if (exercise == null) continue;
+      
+      // Get all body parts for this exercise
+      final bodyPartIds = parseBodyPartIds(exercise.bodyPartIds);
+      final bodyPartsList = <BodyPart>[];
+      BodyPart? primaryBodyPart;
+      
+      for (final bpId in bodyPartIds) {
+        final bp = await getBodyPartById(bpId);
+        if (bp != null) {
+          bodyPartsList.add(bp);
+          primaryBodyPart ??= bp;
+        }
+      }
+      
+      if (primaryBodyPart != null) {
+        result.putIfAbsent(record.sessionId, () => []).add(ExerciseRecordWithDetails(
+          record: record,
+          exercise: exercise,
+          bodyPart: primaryBodyPart,
+          bodyParts: bodyPartsList,
+        ));
+      }
     }
     
-    // Also get body-part-only records (marked with "bodyPart:" prefix)
-    // These have exerciseId like "bodyPart:xxx"
-    for (final sessionId in sessionIds) {
-      final bodyPartRecords = await (select(exerciseRecords)
-        ..where((t) => t.sessionId.equals(sessionId) & 
-                       t.exerciseId.like('bodyPart:%')))
-        .get();
-      
-      for (final record in bodyPartRecords) {
-        // Extract body part ID from "bodyPart:xxx"
-        final bodyPartId = record.exerciseId.substring('bodyPart:'.length);
-        final bodyPart = await getBodyPartById(bodyPartId);
-        if (bodyPart != null) {
-          result.putIfAbsent(sessionId, () => []).add(ExerciseRecordWithDetails(
-            record: record,
-            exercise: null,  // No specific exercise
-            bodyPart: bodyPart,
-          ));
-        }
+    // Process body-part-only records
+    for (final record in bodyPartRecords) {
+      if (record.exerciseId == null) continue;
+      final bodyPartId = record.exerciseId!.substring('bodyPart:'.length);
+      final bodyPart = await getBodyPartById(bodyPartId);
+      if (bodyPart != null) {
+        result.putIfAbsent(record.sessionId, () => []).add(ExerciseRecordWithDetails(
+          record: record,
+          exercise: null,  // No specific exercise
+          bodyPart: bodyPart,
+          bodyParts: [bodyPart],
+        ));
       }
     }
     
@@ -351,14 +598,17 @@ class AppDatabase extends _$AppDatabase {
   // ============ Statistics Queries ============
   
   /// Get sessions containing a specific body part
-  Future<List<WorkoutSession>> getSessionsByBodyPart(String bodyPartId) async {
-    final exerciseIds = await (select(exercises)
-      ..where((t) => t.bodyPartId.equals(bodyPartId)))
-      .get();
+  Future<List<WorkoutSession>> getSessionsByBodyPart(String targetBodyPartId) async {
+    // Get all exercises and filter by bodyPartIds containing targetBodyPartId
+    final allExercises = await getAllExercises();
+    final matchingExercises = allExercises.where((e) {
+      final bodyPartIds = parseBodyPartIds(e.bodyPartIds);
+      return bodyPartIds.contains(targetBodyPartId);
+    }).toList();
     
-    if (exerciseIds.isEmpty) return [];
+    if (matchingExercises.isEmpty) return [];
     
-    final exerciseIdsList = exerciseIds.map((e) => e.id).toList();
+    final exerciseIdsList = matchingExercises.map((e) => e.id).toList();
     final recordIds = await (select(exerciseRecords)
       ..where((t) => t.exerciseId.isIn(exerciseIdsList)))
       .get();
@@ -393,10 +643,12 @@ class AppDatabase extends _$AppDatabase {
     final Map<DateTime, double> dailyVolumes = {};
     
     for (final session in sessions) {
+      // 使用本地时间获取日期，确保热力图显示正确的本地日期
+      final localStartTime = DateTimeUtils.toLocalTime(session.startTime);
       final date = DateTime(
-        session.startTime.year,
-        session.startTime.month,
-        session.startTime.day,
+        localStartTime.year,
+        localStartTime.month,
+        localStartTime.day,
       );
       final volume = await getSessionVolume(session.id);
       dailyVolumes[date] = (dailyVolumes[date] ?? 0) + volume;

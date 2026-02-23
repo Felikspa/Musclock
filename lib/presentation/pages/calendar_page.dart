@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/theme/appflowy_theme.dart';
+import '../../core/utils/date_time_utils.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../widgets/calendar/day_detail_card.dart';
+import '../widgets/calendar/heatmap_color.dart';
 import '../widgets/musclock_app_bar.dart';
 
 class CalendarPage extends ConsumerStatefulWidget {
@@ -187,9 +189,11 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                       return const SizedBox.shrink();
                     }
                     final daySessions = sessions.where((s) {
-                      return s.startTime.year == _selectedDay!.year &&
-                          s.startTime.month == _selectedDay!.month &&
-                          s.startTime.day == _selectedDay!.day;
+                      // 转换为本地时间进行比较，确保正确显示本地时区的日期
+                      final localStartTime = DateTimeUtils.toLocalTime(s.startTime);
+                      return localStartTime.year == _selectedDay!.year &&
+                          localStartTime.month == _selectedDay!.month &&
+                          localStartTime.day == _selectedDay!.day;
                     }).toList();
 
                     return DayDetailCard(
@@ -211,17 +215,24 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   Widget _buildCalendarDay(BuildContext context, DateTime day, {bool isToday = false, bool isSelected = false, Color accentColor = MusclockBrandColors.primary}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sessionsByDate = ref.watch(sessionsByDateProvider);
+
+    // Use training points for heatmap visualization
+    final trainingPointsAsync = ref.watch(trainingPointsByDateProvider);
+    final maxTP = ref.watch(maxTrainingPointsProvider);
 
     // Normalize the day to date only (remove time)
     final normalizedDay = DateTime(day.year, day.month, day.day);
-    final daySessions = sessionsByDate[normalizedDay] ?? [];
-    final hasWorkout = daySessions.isNotEmpty;
+    
+    // Get TP for this day
+    double tp = 0;
+    trainingPointsAsync.whenData((tpMap) {
+      tp = tpMap[normalizedDay] ?? 0;
+    });
 
-    // Get primary muscle group color
+    // Get background color based on TP value
     Color? backgroundColor;
-    if (hasWorkout && daySessions.isNotEmpty) {
-      backgroundColor = accentColor.withOpacity(0.3);
+    if (tp > 0) {
+      backgroundColor = HeatmapColor.getColor(tp, maxTP);
     }
 
     Color textColor;

@@ -462,4 +462,44 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notifications => 'Notifications';
+
+  @override
+  String get deleteConfirm =>
+      'Are you sure you want to delete this training record?';
+
+  @override
+  String get deleteSuccess => 'Deleted successfully';
+
+  @override
+  String get last7Days => 'Last 7 Days';
+
+  @override
+  String get last30Days => 'Last 30 Days';
+
+  @override
+  String get planNameExists => 'A plan with this name already exists';
+
+  @override
+  String get startExecution => 'Start Execution';
+
+  @override
+  String get stopExecution => 'Stop Execution';
+
+  @override
+  String get setTrainingDay => 'Set Training Day';
+
+  @override
+  String get trainingDay => 'Training Day';
+
+  @override
+  String get confirm => 'Confirm';
+
+  @override
+  String get addWorkout => 'Add Workout';
+
+  @override
+  String get selectTime => 'Select Time';
+
+  @override
+  String get workoutTime => 'Workout Time';
 }

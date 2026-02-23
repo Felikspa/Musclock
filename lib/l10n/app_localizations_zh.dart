@@ -452,7 +452,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tricepDips => '三头臂屈伸';
 
   @override
-  String get skullCrusher => ' Skull Crusher';
+  String get skullCrusher => '仰卧臂屈伸';
 
   @override
   String get preacherCurl => '牧师凳弯举';
@@ -462,4 +462,43 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notifications => '通知';
+
+  @override
+  String get deleteConfirm => '确定要删除这条训练记录吗？';
+
+  @override
+  String get deleteSuccess => '删除成功';
+
+  @override
+  String get last7Days => '近7天';
+
+  @override
+  String get last30Days => '近30天';
+
+  @override
+  String get planNameExists => '该名称的计划已存在';
+
+  @override
+  String get startExecution => '开始执行';
+
+  @override
+  String get stopExecution => '停止执行';
+
+  @override
+  String get setTrainingDay => '设置训练日';
+
+  @override
+  String get trainingDay => '训练日';
+
+  @override
+  String get confirm => '确认';
+
+  @override
+  String get addWorkout => '添加训练';
+
+  @override
+  String get selectTime => '选择时间';
+
+  @override
+  String get workoutTime => '训练时间';
 }

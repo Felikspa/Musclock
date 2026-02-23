@@ -52,10 +52,22 @@ class BackupService {
     // 恢复Exercises
     if (data['exercises'] != null) {
       for (final e in data['exercises'] as List) {
+        // Handle both old bodyPartId and new bodyPartIds formats for backward compatibility
+        String bodyPartIdsJson;
+        if (e['bodyPartIds'] != null) {
+          bodyPartIdsJson = e['bodyPartIds'] is String 
+              ? e['bodyPartIds'] 
+              : jsonEncode(e['bodyPartIds']);
+        } else if (e['bodyPartId'] != null) {
+          // Migrate from old single bodyPartId format
+          bodyPartIdsJson = '["${e['bodyPartId']}"]';
+        } else {
+          bodyPartIdsJson = '[]';
+        }
         await _db.insertExercise(ExercisesCompanion.insert(
           id: e['id'],
           name: e['name'],
-          bodyPartId: e['bodyPartId'],
+          bodyPartIds: Value(bodyPartIdsJson),
           createdAt: DateTime.parse(e['createdAt']),
         ));
       }

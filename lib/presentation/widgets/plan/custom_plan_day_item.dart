@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/enums/muscle_enum.dart';
 import '../../../data/database/database.dart';
 import '../../providers/providers.dart';
 import '../muscle_group_helper.dart';
@@ -11,12 +10,14 @@ class CustomPlanDayItem extends ConsumerWidget {
   final PlanItem planItem;
   final bool isDark;
   final AppLocalizations l10n;
+  final bool isHighlighted;
 
   const CustomPlanDayItem({
     super.key,
     required this.planItem,
     required this.isDark,
     required this.l10n,
+    this.isHighlighted = false,
   });
 
   @override
@@ -25,8 +26,17 @@ class CustomPlanDayItem extends ConsumerWidget {
     final bodyPartsAsync = ref.watch(bodyPartsProvider);
     final locale = Localizations.localeOf(context).languageCode;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        // Highlighted: border + background
+        color: isHighlighted ? AppTheme.accent.withOpacity(0.08) : null,
+        border: isHighlighted
+            ? Border.all(color: AppTheme.accent, width: 2)
+            : null,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
         children: [
           SizedBox(
@@ -34,8 +44,11 @@ class CustomPlanDayItem extends ConsumerWidget {
             child: Text(
               'Day ${planItem.dayIndex + 1}',
               style: TextStyle(
-                color: isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                color: isHighlighted
+                    ? AppTheme.accent
+                    : isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
                 fontSize: 14,
+                fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           ),

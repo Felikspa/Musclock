@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/date_time_utils.dart';
 import '../../../domain/entities/exercise_record_with_session.dart';
 import '../muscle_group_helper.dart';
+import '../exercise_helper.dart';
 import '../training_details_dialog.dart';
 
 class ExerciseRecordCard extends StatelessWidget {
@@ -20,16 +21,20 @@ class ExerciseRecordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final timeFormat = DateFormat('HH:mm');
     final exercise = exerciseRecord;
     final bodyPartName = exercise.bodyPart?.name ?? '';
-    final exerciseName = exercise.exercise?.name;
+    final locale = Localizations.localeOf(context).languageCode;
+
+    // Get localized exercise name
+    final rawExerciseName = exercise.exercise?.name;
+    final exerciseName = rawExerciseName != null 
+        ? ExerciseHelper.getLocalizedName(rawExerciseName, locale)
+        : null;
 
     // Get muscle color and localized name
     final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPartName);
     final muscleColor = AppTheme.getMuscleColor(muscleGroup);
-    final locale = Localizations.localeOf(context).languageCode;
-    final displayBodyPartName = muscleGroup != null ? muscleGroup.getLocalizedName(locale) : bodyPartName;
+    final displayBodyPartName = muscleGroup.getLocalizedName(locale);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -106,7 +111,8 @@ class ExerciseRecordCard extends StatelessWidget {
               const SizedBox(width: 8),
               // Time on the right
               Text(
-                timeFormat.format(exercise.session.startTime),
+                // 使用工具类将 UTC 时间转换为本地时间后格式化
+                DateTimeUtils.formatTime(exercise.session.startTime),
                 style: TextStyle(
                   color: isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
                   fontSize: 12,

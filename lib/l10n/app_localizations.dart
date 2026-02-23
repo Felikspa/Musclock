@@ -1003,6 +1003,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Notifications'**
   String get notifications;
+
+  /// No description provided for @deleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete this training record?'**
+  String get deleteConfirm;
+
+  /// No description provided for @deleteSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted successfully'**
+  String get deleteSuccess;
+
+  /// No description provided for @last7Days.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 7 Days'**
+  String get last7Days;
+
+  /// No description provided for @last30Days.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 30 Days'**
+  String get last30Days;
+
+  /// No description provided for @planNameExists.
+  ///
+  /// In en, this message translates to:
+  /// **'A plan with this name already exists'**
+  String get planNameExists;
+
+  /// No description provided for @startExecution.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Execution'**
+  String get startExecution;
+
+  /// No description provided for @stopExecution.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Execution'**
+  String get stopExecution;
+
+  /// No description provided for @setTrainingDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Set Training Day'**
+  String get setTrainingDay;
+
+  /// No description provided for @trainingDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Training Day'**
+  String get trainingDay;
+
+  /// No description provided for @confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get confirm;
+
+  /// No description provided for @addWorkout.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Workout'**
+  String get addWorkout;
+
+  /// No description provided for @selectTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Time'**
+  String get selectTime;
+
+  /// No description provided for @workoutTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Workout Time'**
+  String get workoutTime;
 }
 
 class _AppLocalizationsDelegate

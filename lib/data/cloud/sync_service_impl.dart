@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../core/utils/date_time_utils.dart';
 import '../database/database.dart';
 import 'models/sync_result.dart';
 
@@ -172,14 +173,42 @@ class CloudSyncService {
     final localData = await _getLocalTableData(localTable);
     if (localData.isEmpty) return 0;
 
-    final dataToUpload = localData.map((e) => _prepareCloudData(e, userId)).toList();
+    // Separate data into to-upload and to-delete based on is_deleted flag
+    final dataToUpload = <Map<String, dynamic>>[];
+    final idsToDelete = <String>[];
+    
+    for (final item in localData) {
+      final isDeleted = item['is_deleted'] == true || item['is_deleted'] == 1;
+      if (isDeleted) {
+        // For soft-deleted records, add to delete list
+        idsToDelete.add(item['id']);
+      } else {
+        dataToUpload.add(item);
+      }
+    }
+    
     int count = 0;
     
-    // Supabase upsert in batches
-    for (var i = 0; i < dataToUpload.length; i += 100) {
-      final batch = dataToUpload.skip(i).take(100).toList();
-      await _client.from(cloudTable).upsert(batch);
-      count += batch.length;
+    // First, delete soft-deleted records from cloud
+    for (final id in idsToDelete) {
+      try {
+        await _client.from(cloudTable).delete().eq('id', id).eq('user_id', userId);
+        count++;
+      } catch (e) {
+        debugPrint('Error deleting $cloudTable record $id: $e');
+      }
+    }
+    
+    // Then, upload non-deleted records
+    if (dataToUpload.isNotEmpty) {
+      final preparedData = dataToUpload.map((e) => _prepareCloudData(e, userId)).toList();
+      
+      // Supabase upsert in batches
+      for (var i = 0; i < preparedData.length; i += 100) {
+        final batch = preparedData.skip(i).take(100).toList();
+        await _client.from(cloudTable).upsert(batch);
+        count += batch.length;
+      }
     }
     return count;
   }
@@ -193,8 +222,30 @@ class CloudSyncService {
     int count = 0;
     for (final record in cloudRecords) {
       if (record is Map<String, dynamic>) {
-          await _updateLocalTableData(localTable, record);
-          count++;
+        // For exercise_records, check if local record is already soft-deleted
+        if (localTable == 'exercise_records') {
+          final localId = record['id'];
+          final cloudIsDeleted = record['is_deleted'] == true || record['is_deleted'] == 1;
+          
+          // Get local record to check its deletion status
+          final localRecords = await _database.getAllExerciseRecordsIncludingDeleted();
+          final localRecord = localRecords.where((r) => r.id == localId).firstOrNull;
+          
+          if (localRecord != null && localRecord.isDeleted) {
+            // Local is already soft-deleted, skip this cloud record
+            continue;
+          }
+          
+          // If cloud record is deleted, also soft-delete local
+          if (cloudIsDeleted) {
+            await _database.softDeleteExerciseRecord(localId);
+            count++;
+            continue;
+          }
+        }
+        
+        await _updateLocalTableData(localTable, record);
+        count++;
       }
     }
     return count;
@@ -228,23 +279,26 @@ class CloudSyncService {
         return exercises.map((e) => {
           'id': e.id,
           'name': e.name,
-          'body_part_id': e.bodyPartId,
+          'body_part_ids': e.bodyPartIds,
           'created_at': e.createdAt.toIso8601String(),
         }).toList();
       case 'workout_sessions':
         final sessions = await _database.getAllSessions();
         return sessions.map((s) => {
           'id': s.id,
-          'start_time': s.startTime.toIso8601String(),
-          'created_at': s.createdAt.toIso8601String(),
+          // 关键：确保时间被正确转换为 UTC 后再上传
+          // 因为 Drift 读取的时间被解释为本地时间，需要先转回 UTC
+          'start_time': DateTimeUtils.toUtc(s.startTime).toIso8601String(),
+          'created_at': DateTimeUtils.toUtc(s.createdAt).toIso8601String(),
           'body_part_ids': s.bodyPartIds,
         }).toList();
       case 'exercise_records':
-        final records = await (_database.select(_database.exerciseRecords)).get();
+        final records = await _database.getAllExerciseRecordsIncludingDeleted();
         return records.map((r) => {
           'id': r.id,
           'session_id': r.sessionId,
           'exercise_id': r.exerciseId,
+          'is_deleted': r.isDeleted,
         }).toList();
       case 'set_records':
         final sets = await (_database.select(_database.setRecords)).get();
@@ -292,11 +346,27 @@ class CloudSyncService {
           );
           break;
         case 'exercises':
+          // Handle both new body_part_ids and old body_part_id for backward compatibility
+          final bodyPartIdsData = cloudData['body_part_ids'] ?? cloudData['body_part_id'];
+          String bodyPartIdsStr = '[]';
+          if (bodyPartIdsData != null) {
+            if (bodyPartIdsData is String) {
+              // If it's the new format (JSON array string), use it directly
+              if (bodyPartIdsData.startsWith('[')) {
+                bodyPartIdsStr = bodyPartIdsData;
+              } else {
+                // Old single ID format - convert to JSON array
+                bodyPartIdsStr = '["$bodyPartIdsData"]';
+              }
+            } else if (bodyPartIdsData is List) {
+              bodyPartIdsStr = bodyPartIdsData.toString();
+            }
+          }
           await _database.into(_database.exercises).insert(
             ExercisesCompanion(
               id: drift.Value(cloudData['id']),
               name: drift.Value(cloudData['name']),
-              bodyPartId: drift.Value(cloudData['body_part_id']),
+              bodyPartIds: drift.Value(bodyPartIdsStr),
               createdAt: drift.Value(DateTime.parse(cloudData['created_at'])),
             ),
             mode: drift.InsertMode.insertOrReplace,
@@ -319,6 +389,7 @@ class CloudSyncService {
               id: drift.Value(cloudData['id']),
               sessionId: drift.Value(cloudData['session_id']),
               exerciseId: drift.Value(cloudData['exercise_id']),
+              isDeleted: drift.Value(cloudData['is_deleted'] ?? false),
             ),
             mode: drift.InsertMode.insertOrReplace,
           );

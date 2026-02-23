@@ -1,8 +1,8 @@
 # Musclock 项目档案
 
-> **最后更新**: 2026-02-23
-> **版本**: v1.3.3
-> **状态**: Settings 页面化完成
+> **最后更新**: 2026-02-24
+> **版本**: v1.4.5
+> **状态**: 训练动作多部位支持 - 完成！支持动作（Exercise）关联多个部位（BodyPart），例如Deadlift同时关联back、glutes、legs，并在Today页添加动作弹窗中显示关联部位的彩色框
 
 ## 1. 项目概览 (Overview)
 
@@ -10,11 +10,11 @@
 
 ### 核心功能
 - **训练记录 (Today)**: 实时记录训练动作、组数、重量与次数，支持自动计算容量。
-- **日历视图 (Calendar)**: 按月展示训练历史，热力图风格直观呈现训练强度。
+- **日历视图 (Calendar)**: 按月展示训练历史，基于数据置信度的加权得分制热力图呈现训练强度。
 - **数据分析 (Analysis)**: 多维度统计（部位训练频率、休息天数、总容量），辅助科学训练。
 - **计划管理 (Plan)**: 支持 PPL、Upper/Lower 等经典分化计划及自定义计划。
 - **本地优先**: 数据完全存储在本地 SQLite 数据库，支持 JSON/CSV 导出与备份。
-- **云同步 (Beta)**: 支持知晓云 BaaS 平台数据同步。
+- **云同步 (Beta)**: 支持Supabase BaaS 平台数据同步。
 
 ---
 
@@ -82,15 +82,15 @@ Musclock/
 ```
 
 ### 2.3 关键技术栈
-||| 领域 | 库/工具 | 说明 |
-|||------|---------|------|
-||| **Framework** | Flutter | 跨平台 UI 框架 |
-||| **Language** | Dart 3 | 强类型、空安全 |
-||| **State Management** | Flutter Riverpod | 声明式状态管理，依赖注入 |
-||| **Database** | Drift (SQLite) | 类型安全的 ORM，支持 Stream 响应式查询 |
-||| **Localization** | flutter_localizations | 官方国际化方案 (ARB) |
-||| **UI Components** | appflowy_ui | AppFlowy 风格 UI 组件 |
-||| **Utils** | intl, uuid, path_provider | 基础工具库 |
+|||| 领域 | 库/工具 | 说明 |
+||||------|---------|------|
+|||| **Framework** | Flutter | 跨平台 UI 框架 |
+|||| **Language** | Dart 3 | 强类型、空安全 |
+|||| **State Management** | Flutter Riverpod | 声明式状态管理，依赖注入 |
+|||| **Database** | Drift (SQLite) | 类型安全的 ORM，支持 Stream 响应式查询 |
+|||| **Localization** | flutter_localizations | 官方国际化方案 (ARB) |
+|||| **UI Components** | appflowy_ui | AppFlowy 风格 UI 组件 |
+|||| **Utils** | intl, uuid, path_provider | 基础工具库 |
 
 ---
 
@@ -158,6 +158,36 @@ double sessionVolume = Σ(所有动作的volume)
 // Heatmap数据
 Map<DateTime, double> dailyVolume
 ```
+
+### 4.4 训练值 (Training Points - TP)
+
+基于数据置信度的加权得分制热力图算法，支持渐进式降级：
+
+```dart
+// Level 1: 模糊匹配层（仅部位）
+// TP = 部位基础权重 × √部位数量
+// 大肌群权重10，小肌群权重6
+double calculateLevel1(List<String> bodyPartIds)
+
+// Level 2: 结构化层（有组数）
+// TP = Σ(组数 × 1.2)
+double calculateLevel2(int setCount)
+
+// Level 3: 精确测量层（完整数据）
+// TP = Σ(重量 × 次数 × 组数) × 动作难度系数 × 1.5
+// 复合动作系数1.2，孤立动作系数0.8
+double calculateLevel3(List<SetRecord> sets, String exerciseName)
+```
+
+**视觉反馈**:
+- 仅部位记录: 浅绿色 (Light Green)
+- 有组数记录: 中绿色 (Medium Green)
+- 完整数据记录: 深绿色/金色 (Deep Green/Gold)
+
+**优势**:
+- 引导用户"变专业": 记录越详细，热力图越有成就感
+- 避免数据断层: 不同水平用户可在同一热力图上竞争
+- 计算鲁棒性: 混合数据自动分层计算
 
 ---
 
@@ -245,13 +275,19 @@ New Session → Add Exercise → Add Sets → Save
 
 ## 7. 版本历史 (Version History)
 
-||| 版本 | 日期 | 类型 | 说明 |
-|||------|------|------|------|
-||| **v1.3.2** | 2026-02-23 | Refactoring | **UI 命名规范化重构**<br>- 制定统一的组件命名规范 (v2.0)<br>- 引入模块前缀体系: `Workout` / `Calendar` / `App`<br>- 明确组件类型后缀: `Page` / `View` / `Card` / `List` / `Dialog` / `BottomSheet` / `Panel` / `Selector` / `Helper` / `Data`<br>- 更新 UI_DOCUMENTATION.md 完整命名对照表 |
-| **v1.3.3** | 2026-02-23 | Feature | **Settings 页面化**<br>- 将 Settings 从 Bottom Sheet 改为完整页面导航<br>- 迁移 AppFlowy 卡片样式到 SettingsPage<br>- 添加通知设置模块
-||| **v1.3.0-beta.1** | 2026-02-23 | Beta | **AppFlowy UI Beta 版发布**<br>- AppFlowy UI 风格重构<br>- 4-Tab 底部导航 (Calendar/Today/Analysis/Plan)<br>- MusclockAppBar 通用顶部导航<br>- SettingsBottomSheet 设置面板<br>- 品牌色 (#00D4AA) 融入 AppFlowy 主题<br>- 毛玻璃背景效果 |
-||| **v1.2.8** | 2026-02-23 | Refactoring | **AppFlowy UI风格重构完成**<br>- **步骤1-3**: 复制appflowy_ui包到Musclock，配置pubspec.yaml依赖，创建AppFlowy风格主题配置 (MusclockBrandColors.primary = #00D4AA)。<br>- **步骤4**: 底部导航栏改为4个Tab (Calendar/Today/Analysis/Plan)，使用NavigationBar+毛玻璃背景效果。<br>- **步骤5**: 创建MusclockAppBar通用顶部导航栏组件，支持滚动时透明度变化。<br>- **步骤6**: 创建SettingsBottomSheet设置底部弹出面板，支持主题切换、语言切换、导出备份、云同步。<br>- **页面迁移**: Calendar/Today/Analysis/Plan页面已统一使用MusclockAppBar。<br>- **代码质量**: flutter analyze通过，无编译错误，仅有info级别弃用警告。 |
-||| **v1.0.0 - v1.2.7** | 2026-02-20~22 | Stable | **初始开发阶段**<br>- 基础功能: 训练记录 (Today)、日历视图 (Calendar)、数据分析 (Analysis)、计划管理 (Plan)<br>- 全面中文本地化<br>- 性能优化 (N+1查询修复、日历索引优化)<br>- Bug 修复 (实时更新、多选支持、重复检测等)<br>- 架构重构 (Clean Architecture、Repository 模式)<br>- 新增部位: Glutes (臀)、Abs (腹) |
+|||| 版本 | 日期 | 类型 | 说明 |
+||||------|------|------|------|
+|||| **v1.5.0** | 2026-02-24 | Feature | **Plan页执行计划功能**<br>- 在顶部导航栏添加执行/停止按钮<br>- 支持预设计划(PPL/Upper/Lower/Bro Split)和自定义计划的执行<br>- 执行的计划在Selection栏中置顶并有特殊背景色强调<br>- 点击开始执行弹出滚轮选择器设置训练日<br>- 当前训练日在Schedule中高亮边框+背景显示<br>- 应用启动时自动更新训练日计数 |
+| **v1.4.4** | 2026-02-24 | Bug Fix | **Plan页重名计划检测**<br>- 新增保存前检测重名计划功能，避免创建重复名称计划导致程序异常<br>- 在数据库层添加 `isPlanNameExists` 查询方法<br>- 在仓储层添加对应的包装方法<br>- 在 PlanSetupDialog 保存前添加重名检测<br>- 添加中英文本地化提示文本 |
+|||| **v1.4.3** | 2026-02-23 | Feature | **Today页交互逻辑重构**<br>- 点击新训练后保存时才创建session，保存后返回TodaySessionView，点击session卡片可进入编辑模式 |
+|||| **v1.3.2** | 2026-02-23 | Refactoring | **UI 命名规范化重构**<br>- 制定统一的组件命名规范 (v2.0)<br>- 引入模块前缀体系: `Workout` / `Calendar` / `App`<br>- 明确组件类型后缀: `Page` / `View` / `Card` / `List` / `Dialog` / `BottomSheet` / `Panel` / `Selector` / `Helper` / `Data`<br>- 更新 UI_DOCUMENTATION.md 完整命名对照表 |
+|| **v1.3.3** | 2026-02-23 | Feature | **Settings 页面化**<br>- 将 Settings 从 Bottom Sheet 改为完整页面导航<br>- 迁移 AppFlowy 卡片样式到 SettingsPage<br>- 添加通知设置模块 |
+||||| **v1.3.5** | 2026-02-23 | Bug Fix | **训练项目本地化全面修复**<br>- 补充 ExerciseHelper 大量缺失映射<br>- 修复 ExerciseCard 和 AddSetSheet 本地化显示 |
+|||| **v1.3.4** | 2026-02-23 | UI Fix | **Analysis TabBar 指示器优化**<br>- 将绿色块背景改为底部绿色线条指示器<br>- 解决"统计数据"/"热力图"选中时绿色块卡着文字的丑态 |
+|||| **v1.4.0** | 2026-02-23 | Feature | **Analysis页面热力图重构**<br>- 将Analysis页热力图改为**垂直向上柱状图**展示（从左向右日期递增）<br>- 支持**分段按钮(SegmentedButton)**切换：近7天 / 近30天<br>- 采用与Calendar相同的**TP训练值算法**渲染颜色<br>- 切换按钮添加**中英文本地化**支持 |
+|||| **v1.3.0-beta.1** | 2026-02-23 | Beta | **AppFlowy UI Beta 版发布**<br>- AppFlowy UI 风格重构<br>- 4-Tab 底部导航 (Calendar/Today/Analysis/Plan)<br>- MusclockAppBar 通用顶部导航<br>- SettingsBottomSheet 设置面板<br>- 品牌色 (#00D4AA) 融入 AppFlowy 主题<br>- 毛玻璃背景效果 |
+|||| **v1.2.8** | 2026-02-23 | Refactoring | **AppFlowy UI风格重构完成**<br>- **步骤1-3**: 复制appflowy_ui包到Musclock，配置pubspec.yaml依赖，创建AppFlowy风格主题配置 (MusclockBrandColors.primary = #00D4AA)。<br>- **步骤4**: 底部导航栏改为4个Tab (Calendar/Today/Analysis/Plan)，使用NavigationBar+毛玻璃背景效果。<br>- **步骤5**: 创建MusclockAppBar通用顶部导航栏组件，支持滚动时透明度变化。<br>- **步骤6**: 创建SettingsBottomSheet设置底部弹出面板，支持主题切换、语言切换、导出备份、云同步。<br>- **页面迁移**: Calendar/Today/Analysis/Plan页面已统一使用MusclockAppBar。<br>- **代码质量**: flutter analyze通过，无编译错误，仅有info级别弃用警告。 |
+|||| **v1.0.0 - v1.2.7** | 2026-02-20~22 | Stable | **初始开发阶段**<br>- 基础功能: 训练记录 (Today)、日历视图 (Calendar)、数据分析 (Analysis)、计划管理 (Plan)<br>- 全面中文本地化<br>- 性能优化 (N+1查询修复、日历索引优化)<br>- Bug 修复 (实时更新、多选支持、重复检测等)<br>- 架构重构 (Clean Architecture、Repository 模式)<br>- 新增部位: Glutes (臀)、Abs (腹) |
 
 ---
 

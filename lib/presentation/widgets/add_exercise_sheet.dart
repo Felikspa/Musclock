@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' show Value;
+import 'dart:convert';
 
+import '../../core/theme/app_theme.dart';
 import '../../data/database/database.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
 import 'muscle_group_helper.dart';
+import 'exercise_helper.dart';
 
 class AddExerciseSheet extends ConsumerStatefulWidget {
   final ScrollController scrollController;
@@ -34,6 +38,7 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
     // Watch providers directly so they update automatically when new data is added
     final bodyPartsAsync = ref.watch(bodyPartsProvider);
     final exercisesAsync = ref.watch(exercisesProvider);
+    final locale = Localizations.localeOf(context).languageCode;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -106,11 +111,13 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                                 orElse: () => Exercise(
                                   id: '',
                                   name: '',
-                                  bodyPartId: '',
+                                  bodyPartIds: '[]',
                                   createdAt: DateTime.now(),
                                 ),
                               );
-                              return exercise.bodyPartId == bp.id;
+                              // Check if bodyPartIds JSON array contains bp.id
+                              final ids = _parseBodyPartIds(exercise.bodyPartIds);
+                              return ids.contains(bp.id);
                             });
                           }
                         });
@@ -151,9 +158,12 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
             Expanded(
               child: exercisesAsync.when(
                 data: (exercises) {
-                  // Filter exercises by selected body parts
+                  // Filter exercises by selected body parts (check if bodyPartIds JSON array contains any of the selected body part IDs)
                   final filtered = exercises
-                      .where((e) => _selectedBodyPartIds.contains(e.bodyPartId))
+                      .where((e) {
+                        final ids = _parseBodyPartIds(e.bodyPartIds);
+                        return _selectedBodyPartIds.any((selectedId) => ids.contains(selectedId));
+                      })
                       .toList();
                   
                   if (filtered.isEmpty) {
@@ -185,13 +195,21 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                         );
                       }
                       final exercise = filtered[index];
+                      final displayExerciseName = ExerciseHelper.getLocalizedName(exercise.name, locale);
+                      // Parse bodyPartIds for this exercise
+                      final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
                       return CheckboxListTile(
-                        title: Text(exercise.name),
+                        title: Text(displayExerciseName),
+                        subtitle: _buildBodyPartChips(bodyPartIds, locale),
                         value: _selectedExerciseIds.contains(exercise.id),
                         onChanged: (selected) {
                           setState(() {
                             if (selected == true) {
                               _selectedExerciseIds.add(exercise.id);
+                              // Auto-select all body parts associated with this exercise
+                              for (final bpId in bodyPartIds) {
+                                _selectedBodyPartIds.add(bpId);
+                              }
                             } else {
                               _selectedExerciseIds.remove(exercise.id);
                             }
@@ -230,13 +248,15 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
   }
 
   void _saveExercises(BuildContext context, AsyncValue<List<Exercise>> exercisesAsync) async {
-    final sessionState = ref.read(workoutSessionProvider);
     final bodyPartsAsync = ref.read(bodyPartsProvider);
     final exercises = exercisesAsync.value;
     final bodyParts = bodyPartsAsync.value;
     
     if (bodyParts == null) return;
 
+    // 首先创建/合并session（如果1小时内没有session则创建新的，否则复用最近的）
+    await ref.read(workoutSessionProvider.notifier).startSessionAndAddExercise();
+    
     int addedCount = 0;
 
     // If exercises are selected, add them
@@ -247,7 +267,7 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
           orElse: () => Exercise(
             id: '',
             name: '',
-            bodyPartId: '',
+            bodyPartIds: '[]',
             createdAt: DateTime.now(),
           ),
         );
@@ -255,7 +275,9 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
         if (exercise.id.isEmpty) continue;
 
         // Check if exercise already exists in session
-        final isDuplicate = sessionState.exercises.any(
+        // 注意：这里需要重新读取最新的session state
+        final currentSessionState = ref.read(workoutSessionProvider);
+        final isDuplicate = currentSessionState.exercises.any(
           (e) => e.exercise?.id == exercise.id,
         );
         
@@ -288,6 +310,10 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
       }
     }
 
+    ref.invalidate(sessionsProvider);
+
+    // 保存后结束session，返回TodaySessionView
+    await ref.read(workoutSessionProvider.notifier).endSession();
     ref.invalidate(sessionsProvider);
 
     if (context.mounted) {
@@ -367,15 +393,14 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
                 final db = ref.read(databaseProvider);
-                // Add to all selected body parts
-                for (final bodyPartId in _selectedBodyPartIds) {
-                  await db.insertExercise(ExercisesCompanion.insert(
-                    id: DateTime.now().millisecondsSinceEpoch.toString() + bodyPartId,
-                    name: nameController.text,
-                    bodyPartId: bodyPartId,
-                    createdAt: DateTime.now().toUtc(),
-                  ));
-                }
+                // Create a single exercise with all selected body parts as JSON array
+                final bodyPartIdsJson = jsonEncode(_selectedBodyPartIds.toList());
+                await db.insertExercise(ExercisesCompanion.insert(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  name: nameController.text,
+                  bodyPartIds: Value(bodyPartIdsJson),
+                  createdAt: DateTime.now().toUtc(),
+                ));
                 ref.invalidate(exercisesProvider);
                 if (context.mounted) Navigator.pop(context);
               }
@@ -384,6 +409,61 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Parse bodyPartIds JSON array string to List<String>
+  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
+    // Handle NULL or empty values
+    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
+    try {
+      final decoded = jsonDecode(bodyPartIdsJson);
+      if (decoded is List) {
+        return decoded.map((e) => e.toString()).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Build colored boxes for body parts associated with an exercise
+  Widget _buildBodyPartChips(List<String> bodyPartIds, String locale) {
+    if (bodyPartIds.isEmpty) return const SizedBox.shrink();
+
+    // Use ref.watch instead of ref.read for StreamProvider
+    final bodyPartsAsync = ref.watch(bodyPartsProvider);
+    
+    return bodyPartsAsync.when(
+      data: (bodyParts) {
+        return Wrap(
+          spacing: 4,
+          runSpacing: 4,
+          children: bodyPartIds.map((bpId) {
+            final bodyPart = bodyParts.where((bp) => bp.id == bpId).firstOrNull;
+            if (bodyPart == null) return const SizedBox.shrink();
+
+            final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPart.name);
+            final color = AppTheme.getMuscleColor(muscleGroup);
+            final displayName = muscleGroup.getLocalizedName(locale);
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: color.withOpacity(0.5), width: 1),
+              ),
+              child: Text(
+                displayName,
+                style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w500),
+              ),
+            );
+          }).toList(),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }

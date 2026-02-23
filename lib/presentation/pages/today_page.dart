@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../data/database/database.dart';
 import '../../core/theme/appflowy_theme.dart';
+import '../../core/utils/date_time_utils.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
 import '../widgets/today_session_view.dart';
@@ -25,11 +26,13 @@ class TodayPage extends ConsumerWidget {
     final todaySessions = sessionsAsync.maybeWhen(
       data: (sessions) {
         final now = DateTime.now();
-        return sessions.where((s) =>
-          s.startTime.year == now.year &&
-          s.startTime.month == now.month &&
-          s.startTime.day == now.day
-        ).toList();
+        return sessions.where((s) {
+          // 转换为本地时间进行比较，确保正确显示本地时区的日期
+          final localStartTime = DateTimeUtils.toLocalTime(s.startTime);
+          return localStartTime.year == now.year &&
+              localStartTime.month == now.month &&
+              localStartTime.day == now.day;
+        }).toList();
       },
       orElse: () => <WorkoutSession>[],
     );
@@ -39,7 +42,13 @@ class TodayPage extends ConsumerWidget {
       body: sessionState.isActive
           ? const ActiveWorkoutView()
           : todaySessions.isNotEmpty
-              ? TodaySessionView(sessions: todaySessions)
+              ? TodaySessionView(
+                  sessions: todaySessions,
+                  onSessionTap: (session) {
+                    // 点击session卡片时，加载该session进入编辑模式
+                    ref.read(workoutSessionProvider.notifier).loadSessionForEditing(session);
+                  },
+                )
               : _NoWorkoutView(bodyPartsAsync: bodyPartsAsync, l10n: l10n),
       floatingActionButton: sessionState.isActive
           ? null  // No FAB when session is active - auto-save on add
@@ -48,12 +57,10 @@ class TodayPage extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 80),
               child: FloatingActionButton.extended(
                 backgroundColor: MusclockBrandColors.primary,
-                onPressed: () async {
-                  // Start session and show add exercise dialog
-                  await ref.read(workoutSessionProvider.notifier).startNewSession();
-                  if (context.mounted) {
-                    _showAddExerciseSheet(context, ref, l10n);
-                  }
+                onPressed: () {
+                  // 只显示AddExerciseSheet，不在这里创建session
+                  // session创建逻辑在AddExerciseSheet的Save中处理
+                  _showAddExerciseSheet(context, ref, l10n);
                 },
                 icon: const Icon(Icons.add),
                 label: Text(l10n.newSession),

@@ -158,5 +158,19 @@
   "skullCrusher": "Skull Crusher",
   "preacherCurl": "Preacher Curl",
   "account": "Account",
-  "notifications": "Notifications"
+  "notifications": "Notifications",
+  "delete": "Delete",
+  "deleteConfirm": "Are you sure you want to delete this training record?",
+  "deleteSuccess": "Deleted successfully",
+  "last7Days": "Last 7 Days",
+  "last30Days": "Last 30 Days",
+  "planNameExists": "A plan with this name already exists",
+  "startExecution": "Start Execution",
+  "stopExecution": "Stop Execution",
+  "setTrainingDay": "Set Training Day",
+  "trainingDay": "Training Day",
+  "confirm": "Confirm",
+  "addWorkout": "Add Workout",
+  "selectTime": "Select Time",
+  "workoutTime": "Workout Time"
 }

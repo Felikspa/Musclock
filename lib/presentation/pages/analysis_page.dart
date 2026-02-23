@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../data/database/database.dart';
-import '../../domain/repositories/session_repository.dart';
 import '../../core/theme/appflowy_theme.dart';
 import '../providers/providers.dart';
 import '../widgets/musclock_app_bar.dart';
+import '../widgets/muscle_group_helper.dart';
+import '../widgets/calendar/heatmap_bar_chart.dart';
 
 class AnalysisPage extends ConsumerWidget {
   const AnalysisPage({super.key});
@@ -34,9 +35,13 @@ class AnalysisPage extends ConsumerWidget {
                 unselectedLabelColor: Theme.of(context).brightness == Brightness.dark
                     ? Colors.white54
                     : Colors.black54,
-                indicator: BoxDecoration(
-                  color: MusclockBrandColors.primary.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
+                indicatorSize: TabBarIndicatorSize.label,
+                indicator: UnderlineTabIndicator(
+                  borderSide: BorderSide(
+                    color: MusclockBrandColors.primary,
+                    width: 3,
+                  ),
+                  borderRadius: BorderRadius.circular(2),
                 ),
                 dividerColor: Colors.transparent,
                 tabs: [
@@ -221,8 +226,11 @@ class _BodyPartStatCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(sessionsProvider);
-    final calculateRestDays = ref.watch(calculateRestDaysProvider);
-    final calculateFrequency = ref.watch(calculateFrequencyProvider);
+    final locale = Localizations.localeOf(context).languageCode;
+    
+    // Get localized body part name
+    final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPart.name);
+    final displayBodyPartName = muscleGroup.getLocalizedName(locale);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -232,7 +240,7 @@ class _BodyPartStatCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              bodyPart.name,
+              displayBodyPartName,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
@@ -340,7 +348,11 @@ class _HeatmapTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sessionsAsync = ref.watch(sessionsProvider);
+    final currentRange = ref.watch(heatmapTimeRangeProvider);
+    final days = currentRange == HeatmapTimeRange.last7Days ? 7 : 30;
+    final tpAsync = ref.watch(trainingPointsInRangeProvider(currentRange));
+    final maxTP = ref.watch(maxTrainingPointsInRangeProvider(currentRange));
+    final locale = Localizations.localeOf(context).languageCode;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -362,9 +374,32 @@ class _HeatmapTab extends ConsumerWidget {
                   ],
                 ),
                 const Divider(),
-                sessionsAsync.when(
-                  data: (sessions) {
-                    if (sessions.isEmpty) {
+                
+                // SegmentedButton for time range selection
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: SegmentedButton<HeatmapTimeRange>(
+                    segments: [
+                      ButtonSegment<HeatmapTimeRange>(
+                        value: HeatmapTimeRange.last7Days,
+                        label: Text(l10n.last7Days),
+                      ),
+                      ButtonSegment<HeatmapTimeRange>(
+                        value: HeatmapTimeRange.last30Days,
+                        label: Text(l10n.last30Days),
+                      ),
+                    ],
+                    selected: {currentRange},
+                    onSelectionChanged: (Set<HeatmapTimeRange> selected) {
+                      ref.read(heatmapTimeRangeProvider.notifier).state = selected.first;
+                    },
+                  ),
+                ),
+                
+                // Heatmap bar chart
+                tpAsync.when(
+                  data: (tpMap) {
+                    if (tpMap.isEmpty) {
                       return Center(
                         child: Padding(
                           padding: const EdgeInsets.all(32),
@@ -372,10 +407,25 @@ class _HeatmapTab extends ConsumerWidget {
                         ),
                       );
                     }
-                    return _HeatmapGrid(sessions: sessions);
+                    return HeatmapBarChart(
+                      trainingPoints: tpMap,
+                      maxTP: maxTP,
+                      days: days,
+                      locale: locale,
+                    );
                   },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, s) => Text('Error: $e'),
+                  loading: () => const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                  error: (e, s) => Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Text('Error: $e'),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -383,88 +433,5 @@ class _HeatmapTab extends ConsumerWidget {
         ),
       ],
     );
-  }
-}
-
-class _HeatmapGrid extends StatelessWidget {
-  final List<WorkoutSession> sessions;
-
-  const _HeatmapGrid({required this.sessions});
-
-  @override
-  Widget build(BuildContext context) {
-    // Group sessions by date
-    final Map<String, int> sessionCountByDate = {};
-    for (final session in sessions) {
-      final date = DateTime(
-        session.startTime.year,
-        session.startTime.month,
-        session.startTime.day,
-      );
-      final key = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-      sessionCountByDate[key] = (sessionCountByDate[key] ?? 0) + 1;
-    }
-
-    // Get last 12 weeks
-    final now = DateTime.now();
-    final List<Widget> rows = [];
-
-    // Week headers
-    final weekHeaders = ['Mon', '', 'Wed', '', 'Fri', '', 'Sun'];
-    rows.add(
-      Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Row(
-          children: weekHeaders.map((day) {
-            return Expanded(
-              child: Center(
-                child: Text(
-                  day,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-
-    // Generate weeks
-    for (var week = 11; week >= 0; week--) {
-      final List<Widget> weekCells = [];
-      for (var day = 1; day <= 7; day++) {
-        final date = now.subtract(Duration(days: week * 7 + (7 - day)));
-        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-        final count = sessionCountByDate[key] ?? 0;
-
-        Color bgColor;
-        if (count == 0) {
-          bgColor = Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3);
-        } else if (count == 1) {
-          bgColor = Theme.of(context).colorScheme.primaryContainer;
-        } else if (count == 2) {
-          bgColor = Theme.of(context).colorScheme.primary;
-        } else {
-          bgColor = Theme.of(context).colorScheme.primary;
-        }
-
-        weekCells.add(
-          Container(
-            margin: const EdgeInsets.all(1),
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(2),
-            ),
-            height: 16,
-          ),
-        );
-      }
-
-      rows.add(
-        Row(children: weekCells),
-      );
-    }
-
-    return Column(children: rows);
   }
 }

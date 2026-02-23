@@ -7,6 +7,7 @@ import 'dart:io'; // for Platform
 import '../../data/database/database.dart';
 import '../../domain/usecases/calculate_rest_days.dart';
 import '../../domain/usecases/calculate_frequency.dart';
+import '../../domain/usecases/calculate_training_points.dart';
 import '../../data/services/export_service.dart';
 import '../../data/services/backup_service.dart';
 import '../../domain/repositories/plan_repository.dart';
@@ -31,6 +32,11 @@ final calculateRestDaysProvider = Provider<CalculateRestDaysUseCase>((ref) {
 
 final calculateFrequencyProvider = Provider<CalculateFrequencyUseCase>((ref) {
   return CalculateFrequencyUseCase(ref.watch(databaseProvider));
+});
+
+// Training Points (TP) calculation provider for heatmap
+final calculateTrainingPointsProvider = Provider<CalculateTrainingPointsUseCase>((ref) {
+  return CalculateTrainingPointsUseCase(ref.watch(databaseProvider));
 });
 
 // Note: CalculateVolumeUseCase is defined in calculate_volume.dart
@@ -89,6 +95,45 @@ final sessionsByDateProvider = Provider<Map<DateTime, List<WorkoutSession>>>((re
     },
     loading: () => {},
     error: (_, __) => {},
+  );
+});
+
+// Training Points (TP) indexed by date for heatmap visualization
+final trainingPointsByDateProvider = FutureProvider<Map<DateTime, double>>((ref) async {
+  final sessionsAsync = ref.watch(sessionsProvider);
+  final tpUseCase = ref.watch(calculateTrainingPointsProvider);
+  
+  return sessionsAsync.when(
+    data: (sessions) async {
+      final Map<DateTime, double> index = {};
+      for (final session in sessions) {
+        final date = DateTime(
+          session.startTime.year,
+          session.startTime.month,
+          session.startTime.day,
+        );
+        final tp = await tpUseCase.calculateSessionTP(session.id);
+        // Accumulate TP for days with multiple sessions
+        index[date] = (index[date] ?? 0) + tp;
+      }
+      return index;
+    },
+    loading: () => {},
+    error: (_, __) => {},
+  );
+});
+
+// Maximum TP value for normalization (used for color mapping)
+final maxTrainingPointsProvider = Provider<double>((ref) {
+  final tpAsync = ref.watch(trainingPointsByDateProvider);
+  
+  return tpAsync.when(
+    data: (tpMap) {
+      if (tpMap.isEmpty) return 100.0; // Default fallback
+      return tpMap.values.reduce((a, b) => a > b ? a : b);
+    },
+    loading: () => 100.0,
+    error: (_, __) => 100.0,
   );
 });
 
@@ -151,6 +196,53 @@ final localeProvider = StateNotifierProvider<LocaleNotifier, String>((ref) {
 
 // Plan Page State
 final selectedPlanProvider = StateProvider<String>((ref) => 'PPL');
+
+// Active (executing) plan provider
+final activePlanProvider = FutureProvider<TrainingPlan?>((ref) async {
+  final repo = ref.watch(planRepositoryProvider);
+  return repo.getActivePlan();
+});
+
+// Active preset plan name (for preset plans like PPL)
+final activePresetPlanProvider = StateProvider<String?>((ref) {
+  return SettingsStorage.getActivePresetPlan();
+});
+
+// Active preset plan day index
+final activePresetDayIndexProvider = StateProvider<int>((ref) {
+  return SettingsStorage.getActivePresetDayIndex();
+});
+
+// Current provider training day index
+final currentTrainingDayProvider = Provider<int>((ref) {
+  // Check custom plan first
+  final activePlanAsync = ref.watch(activePlanProvider);
+  final customDay = activePlanAsync.when(
+    data: (plan) => plan?.currentDayIndex,
+    loading: () => null,
+    error: (_, __) => null,
+  );
+  if (customDay != null) return customDay;
+
+  // Then check preset plan
+  return ref.watch(activePresetDayIndexProvider);
+});
+
+// Check if a plan is currently executing
+final isPlanExecutingProvider = Provider.family<bool, String>((ref, planName) {
+  // Check custom plans
+  final activePlanAsync = ref.watch(activePlanProvider);
+  final isCustomExecuting = activePlanAsync.when(
+    data: (plan) => plan?.name == planName,
+    loading: () => false,
+    error: (_, __) => false,
+  );
+  if (isCustomExecuting) return true;
+
+  // Check preset plans
+  final activePreset = ref.watch(activePresetPlanProvider);
+  return activePreset == planName;
+});
 
 // ============ Cloud Sync Providers ============
 
@@ -228,4 +320,69 @@ final cloudSyncServiceProvider = Provider<CloudSyncService>((ref) {
 /// Sync State Provider
 final syncStateProvider = StateNotifierProvider<SyncStateNotifier, SyncState>((ref) {
   return SyncStateNotifier(ref.watch(cloudSyncServiceProvider));
+});
+
+// ============ Heatmap Providers ============
+
+/// Heatmap time range enum
+enum HeatmapTimeRange { last7Days, last30Days }
+
+/// Heatmap time range state provider
+final heatmapTimeRangeProvider = StateProvider<HeatmapTimeRange>((ref) {
+  return HeatmapTimeRange.last7Days;
+});
+
+/// Training Points (TP) for heatmap by date in a specific range
+final trainingPointsInRangeProvider = FutureProvider.family<Map<DateTime, double>, HeatmapTimeRange>((ref, timeRange) async {
+  final sessionsAsync = ref.watch(sessionsProvider);
+  final tpUseCase = ref.watch(calculateTrainingPointsProvider);
+  
+  return sessionsAsync.when(
+    data: (sessions) async {
+      final now = DateTime.now();
+      final startDate = timeRange == HeatmapTimeRange.last7Days 
+          ? now.subtract(const Duration(days: 6))
+          : now.subtract(const Duration(days: 29));
+      
+      // Normalize to start of day
+      final start = DateTime(startDate.year, startDate.month, startDate.day);
+      final end = DateTime(now.year, now.month, now.day);
+      
+      final Map<DateTime, double> index = {};
+      
+      for (final session in sessions) {
+        final sessionDate = DateTime(
+          session.startTime.year,
+          session.startTime.month,
+          session.startTime.day,
+        );
+        
+        // Only include sessions within range
+        if (sessionDate.isBefore(start) || sessionDate.isAfter(end)) {
+          continue;
+        }
+        
+        final tp = await tpUseCase.calculateSessionTP(session.id);
+        index[sessionDate] = (index[sessionDate] ?? 0) + tp;
+      }
+      
+      return index;
+    },
+    loading: () => {},
+    error: (_, __) => {},
+  );
+});
+
+/// Maximum TP value for heatmap in current range
+final maxTrainingPointsInRangeProvider = Provider.family<double, HeatmapTimeRange>((ref, timeRange) {
+  final tpAsync = ref.watch(trainingPointsInRangeProvider(timeRange));
+  
+  return tpAsync.when(
+    data: (tpMap) {
+      if (tpMap.isEmpty) return 100.0;
+      return tpMap.values.reduce((a, b) => a > b ? a : b);
+    },
+    loading: () => 100.0,
+    error: (_, __) => 100.0,
+  );
 });

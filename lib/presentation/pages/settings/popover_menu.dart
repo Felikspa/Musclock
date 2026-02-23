@@ -55,6 +55,19 @@ class PopoverMenu extends ConsumerWidget {
           theme: theme,
           l10n: l10n,
         ),
+        const SizedBox(height: 4),
+        // 第3栏：云同步
+        _buildMenuItem(
+          context: context,
+          icon: Icons.cloud_sync,
+          label: l10n.cloudSync,
+          isDark: isDark,
+          onTap: () {
+            onClose();
+            // 直接触发同步
+            ref.read(syncStateProvider.notifier).syncAll();
+          },
+        ),
       ],
     );
   }
@@ -190,6 +203,16 @@ void showPopoverMenu(BuildContext context, Offset position) {
     overlayEntry.remove();
   }
 
+  // 获取状态栏高度
+  final mediaQuery = MediaQuery.of(context);
+  final statusBarHeight = mediaQuery.padding.top;
+  final screenWidth = mediaQuery.size.width;
+
+  // Popover尺寸
+  const popoverWidth = 260.0;
+  const popoverRight = 12.0;
+  const popoverTop = 60.0;
+
   overlayEntry = OverlayEntry(
     builder: (context) => Stack(
       children: [
@@ -200,35 +223,117 @@ void showPopoverMenu(BuildContext context, Offset position) {
             child: Container(color: Colors.transparent),
           ),
         ),
-        // Popover内容
-        Positioned(
-          left: position.dx - 80,
-          top: position.dy + 10,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              width: 180,
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF2C2C2E)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(8),
-              child: PopoverMenu(onClose: closePopover),
-            ),
-          ),
+        // Popover内容 - 带动画
+        _AnimatedPopover(
+          closePopover: closePopover,
+          popoverWidth: popoverWidth,
+          popoverRight: popoverRight,
+          popoverTop: popoverTop,
+          statusBarHeight: statusBarHeight,
+          screenWidth: screenWidth,
         ),
       ],
     ),
   );
 
   overlay.insert(overlayEntry);
+}
+
+/// 带动画的Popover组件
+class _AnimatedPopover extends StatefulWidget {
+  final VoidCallback closePopover;
+  final double popoverWidth;
+  final double popoverRight;
+  final double popoverTop;
+  final double statusBarHeight;
+  final double screenWidth;
+
+  const _AnimatedPopover({
+    required this.closePopover,
+    required this.popoverWidth,
+    required this.popoverRight,
+    required this.popoverTop,
+    required this.statusBarHeight,
+    required this.screenWidth,
+  });
+
+  @override
+  State<_AnimatedPopover> createState() => _AnimatedPopoverState();
+}
+
+class _AnimatedPopoverState extends State<_AnimatedPopover>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+
+    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+
+    // 启动动画
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Positioned(
+      right: widget.popoverRight,
+      top: widget.popoverTop + widget.statusBarHeight,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            alignment: Alignment.topRight,
+            child: Opacity(
+              opacity: _opacityAnimation.value,
+              child: child,
+            ),
+          );
+        },
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: widget.popoverWidth,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF2C2C2E)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(8),
+            child: PopoverMenu(onClose: widget.closePopover),
+          ),
+        ),
+      ),
+    );
+  }
 }

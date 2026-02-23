@@ -6,6 +6,7 @@ class ExerciseRecordWithSession {
   final WorkoutSession session;
   final Exercise? exercise;  // Nullable for body-part-only records
   final BodyPart? bodyPart;
+  final List<BodyPart> bodyParts;  // All body parts associated with this exercise
   final List<SetRecord> sets;
 
   ExerciseRecordWithSession({
@@ -13,6 +14,7 @@ class ExerciseRecordWithSession {
     required this.session,
     this.exercise,  // Nullable for body-part-only records
     required this.bodyPart,
+    this.bodyParts = const [],
     required this.sets,
   });
 }

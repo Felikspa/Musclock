@@ -78,4 +78,54 @@ class SettingsStorage {
   static Future<bool> setReminderEnabled(bool enabled) {
     return prefs.setBool(_reminderEnabledKey, enabled);
   }
+
+  // ===== Body Weight (Optional) =====
+
+  /// Storage key for body weight
+  static const String _bodyWeightKey = 'body_weight';
+
+  /// 获取保存的体重（可选，用于相对容量计算）
+  /// 返回 null 表示用户未设置体重
+  static double? getBodyWeight() {
+    return prefs.getDouble(_bodyWeightKey);
+  }
+
+  /// 保存体重
+  /// 如果 weight 为 null，则清除体重数据
+  static Future<bool> setBodyWeight(double? weight) {
+    if (weight == null) {
+      return prefs.remove(_bodyWeightKey);
+    }
+    return prefs.setDouble(_bodyWeightKey, weight);
+  }
+
+  // ===== Active Preset Plan (for execution tracking) =====
+
+  /// Storage keys for active preset plan execution
+  static const String _activePresetPlanKey = 'active_preset_plan';
+  static const String _activePresetDayIndexKey = 'active_preset_day_index';
+
+  /// Get the currently executing preset plan name (null if none)
+  static String? getActivePresetPlan() {
+    return prefs.getString(_activePresetPlanKey);
+  }
+
+  /// Set the currently executing preset plan
+  static Future<bool> setActivePresetPlan(String? planName, int? dayIndex) async {
+    if (planName == null) {
+      await prefs.remove(_activePresetPlanKey);
+      await prefs.remove(_activePresetDayIndexKey);
+      return true;
+    }
+    await prefs.setString(_activePresetPlanKey, planName);
+    if (dayIndex != null) {
+      await prefs.setInt(_activePresetDayIndexKey, dayIndex);
+    }
+    return true;
+  }
+
+  /// Get the current day index for preset plan
+  static int getActivePresetDayIndex() {
+    return prefs.getInt(_activePresetDayIndexKey) ?? 1;
+  }
 }

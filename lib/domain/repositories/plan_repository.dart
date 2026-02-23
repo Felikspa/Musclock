@@ -19,6 +19,25 @@ class PlanRepository {
 
   Future<int> deletePlan(String id) => _db.deletePlan(id);
 
+  Future<bool> isPlanNameExists(String name) => _db.isPlanNameExists(name);
+
+  // ===== Active Plan operations =====
+
+  /// Get the currently active (executing) plan
+  Future<TrainingPlan?> getActivePlan() => _db.getActivePlan();
+
+  /// Set a plan as active (starts execution)
+  /// This will deactivate any other active plans first
+  Future<void> setActivePlan(String planId, int currentDayIndex) =>
+      _db.setActivePlan(planId, currentDayIndex);
+
+  /// Deactivate the current active plan (stop execution)
+  Future<void> clearActivePlan() => _db.clearActivePlan();
+
+  /// Update the current day index of the active plan
+  Future<void> updateActivePlanDayIndex(int dayIndex) =>
+      _db.updateActivePlanDayIndex(dayIndex);
+
   // ===== PlanItem operations =====
 
   Future<List<PlanItem>> getPlanItemsByPlan(String planId) =>

@@ -68,7 +68,7 @@ class ExportService {
       'exercises': exercises.map((e) => {
         'id': e.id,
         'name': e.name,
-        'bodyPartId': e.bodyPartId,
+        'bodyPartIds': e.bodyPartIds,
         'createdAt': e.createdAt.toIso8601String(),
       }).toList(),
       'workoutSessions': sessions.map((s) => {
@@ -100,10 +100,14 @@ class ExportService {
       final date = session.startTime.toLocal().toIso8601String().split('T')[0];
 
       for (final record in records) {
-        final exercise = await _db.getExerciseById(record.exerciseId);
+        if (record.exerciseId == null) continue;
+        final exercise = await _db.getExerciseById(record.exerciseId!);
         if (exercise == null) continue;
 
-        final bodyPart = await _db.getBodyPartById(exercise.bodyPartId);
+        // Parse bodyPartIds to get the primary body part
+        final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+        final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
+        final bodyPart = primaryBodyPartId != null ? await _db.getBodyPartById(primaryBodyPartId) : null;
         final sets = await _db.getSetsByExerciseRecord(record.id);
 
         for (final set in sets) {
@@ -124,5 +128,20 @@ class ExportService {
     final directory = await getApplicationDocumentsDirectory();
     final file = File('${directory.path}/$filename');
     return await file.writeAsString(jsonData);
+  }
+
+  /// Parse bodyPartIds JSON array string to List<String>
+  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
+    // Handle NULL or empty values
+    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
+    try {
+      final decoded = jsonDecode(bodyPartIdsJson);
+      if (decoded is List) {
+        return decoded.map((e) => e.toString()).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 }

@@ -16,6 +16,7 @@ class AppThemeConfig {
 
   static const Color accent = Color(0xFF00D4AA);
   static const Color accentLight = Color(0xFF00FFD4);
+  static const Color executing = Color(0xFFFFD700);  // Gold for executing plan highlight
 
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFFAAAAAA);

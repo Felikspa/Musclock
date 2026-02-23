@@ -95,6 +95,7 @@ class ExerciseRecordsList extends ConsumerWidget {
           session: session,
           exercise: details.exercise,
           bodyPart: details.bodyPart,
+          bodyParts: details.bodyParts,
           sets: sets,
         ));
       }

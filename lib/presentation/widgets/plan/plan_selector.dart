@@ -30,19 +30,54 @@ class _PlanSelectorState extends ConsumerState<PlanSelector> {
     final l10n = AppLocalizations.of(context)!;
     final presetPlans = ['PPL', 'Upper/Lower', 'Bro Split'];
     final plansAsync = ref.watch(plansProvider);
+    final activePlanAsync = ref.watch(activePlanProvider);
+    final activePresetPlan = ref.watch(activePresetPlanProvider);
 
-    final allPlans = [
-      ...presetPlans,
-      ...plansAsync.when(
-        data: (plans) => plans.map((p) => p.name),
-        loading: () => <String>[],
-        error: (_, __) => <String>[],
-      ),
-    ];
+    // Get the active plan name (custom plan)
+    final activePlanName = activePlanAsync.when(
+      data: (plan) => plan?.name,
+      loading: () => null,
+      error: (_, __) => null,
+    );
+
+    // Build list of custom plan names
+    final customPlanNames = plansAsync.when(
+      data: (plans) => plans.map((p) => p.name).toList(),
+      loading: () => <String>[],
+      error: (_, __) => <String>[],
+    );
+
+    // Build all plans list: active plan first (if exists), then others
+    final List<String> allPlans = [];
+
+    // Add active custom plan first
+    if (activePlanName != null && customPlanNames.contains(activePlanName)) {
+      allPlans.add(activePlanName);
+    }
+    // Add active preset plan next
+    if (activePresetPlan != null) {
+      if (!allPlans.contains(activePresetPlan)) {
+        allPlans.add(activePresetPlan);
+      }
+    }
+
+    // Add preset plans
+    for (final name in presetPlans) {
+      if (name != activePresetPlan) {
+        allPlans.add(name);
+      }
+    }
+
+    // Add custom plans (not active)
+    for (final name in customPlanNames) {
+      if (name != activePlanName) {
+        allPlans.add(name);
+      }
+    }
 
     // Show all plans when expanded, otherwise show first 4
     final hasMore = allPlans.length > 4;
-    
+
     // Filter plans based on expanded state
     final displayPlans = _isExpanded ? allPlans : allPlans.take(4).toList();
 
@@ -96,9 +131,13 @@ class _PlanSelectorState extends ConsumerState<PlanSelector> {
             children: [
               ...displayPlans.map((planName) {
                 final isPreset = presetPlans.contains(planName);
+                // Check both custom plan and preset plan execution status
+                final isExecuting = planName == activePlanName ||
+                    (isPreset && planName == activePresetPlan);
                 return PlanChip(
                   plan: planName,
                   isSelected: planName == widget.selectedPlan,
+                  isExecuting: isExecuting,
                   onTap: () => widget.onPlanSelected(planName),
                   isDark: widget.isDark,
                   icon: isPreset ? _getPlanIcon(planName) : Icons.fitness_center,
@@ -108,6 +147,7 @@ class _PlanSelectorState extends ConsumerState<PlanSelector> {
               PlanChip(
                 plan: '+',
                 isSelected: false,
+                isExecuting: false,
                 onTap: widget.onCreatePlan,
                 isDark: widget.isDark,
                 icon: Icons.add,
@@ -136,6 +176,7 @@ class _PlanSelectorState extends ConsumerState<PlanSelector> {
 class PlanChip extends StatelessWidget {
   final String plan;
   final bool isSelected;
+  final bool isExecuting;
   final VoidCallback onTap;
   final bool isDark;
   final IconData icon;
@@ -144,6 +185,7 @@ class PlanChip extends StatelessWidget {
     super.key,
     required this.plan,
     required this.isSelected,
+    this.isExecuting = false,
     required this.onTap,
     required this.isDark,
     required this.icon,
@@ -151,19 +193,28 @@ class PlanChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Use gold color for executing, green for selected only
+    final executingColor = AppTheme.executing;
+    final selectedColor = AppTheme.accent;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected 
-              ? AppTheme.accent.withOpacity(0.2) 
-              : isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
+          // Executing plan: gold background, Selected plan: green background
+          color: isExecuting
+              ? executingColor.withOpacity(0.15)
+              : isSelected
+                  ? selectedColor.withOpacity(0.2)
+                  : isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected 
-                ? AppTheme.accent 
-                : Colors.transparent,
+            color: isExecuting
+                ? executingColor
+                : isSelected
+                    ? selectedColor
+                    : Colors.transparent,
             width: 1,
           ),
         ),
@@ -172,9 +223,11 @@ class PlanChip extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isSelected 
-                  ? AppTheme.accent 
-                  : isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+              color: isExecuting
+                  ? executingColor
+                  : isSelected
+                      ? selectedColor
+                      : isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
               size: 16,
             ),
             if (plan != '+') ...[
@@ -182,12 +235,14 @@ class PlanChip extends StatelessWidget {
               Text(
                 plan,
                 style: TextStyle(
-                  color: isSelected 
-                      ? AppTheme.accent 
-                      : isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                  color: isExecuting
+                      ? executingColor
+                      : isSelected
+                          ? selectedColor
+                          : isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
                   fontSize: 13,
-                  fontWeight: isSelected 
-                      ? FontWeight.w600 
+                  fontWeight: isExecuting || isSelected
+                      ? FontWeight.w600
                       : FontWeight.normal,
                 ),
               ),

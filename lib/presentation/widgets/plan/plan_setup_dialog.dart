@@ -151,6 +151,21 @@ class _PlanSetupDialogState extends ConsumerState<PlanSetupDialog> {
 
     final repo = ref.read(planRepositoryProvider);
 
+    // Check if plan name already exists (only for new plans)
+    if (_isNewPlan) {
+      final exists = await repo.isPlanNameExists(_nameController.text);
+      if (exists) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.l10n.planNameExists),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
     // Insert or update the plan
     if (_isNewPlan) {
       await repo.insertPlan(TrainingPlansCompanion.insert(

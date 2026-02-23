@@ -7,6 +7,8 @@ import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
 import 'muscle_group_helper.dart';
+import 'exercise_helper.dart';
+import 'wheel_picker_input.dart';
 
 // ============ Exercise Card ============
 
@@ -70,7 +72,7 @@ class ExerciseCard extends ConsumerWidget {
                       // Exercise Name (only show if exercise exists)
                       if (exerciseInSession.exercise != null)
                         Text(
-                          exerciseInSession.exercise!.name,
+                          ExerciseHelper.getLocalizedName(exerciseInSession.exercise!.name, locale),
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -199,8 +201,8 @@ class AddSetSheet extends ConsumerStatefulWidget {
 
 class AddSetSheetState extends ConsumerState<AddSetSheet> {
   String? _selectedExerciseId;
-  final _weightController = TextEditingController(text: '0');
-  final _repsController = TextEditingController(text: '0');
+  double _weightValue = 20.0; // Default 20 kg
+  int _repsValue = 8; // Default 8 reps
 
   @override
   void initState() {
@@ -213,8 +215,6 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
 
   @override
   void dispose() {
-    _weightController.dispose();
-    _repsController.dispose();
     super.dispose();
   }
 
@@ -222,6 +222,7 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
   Widget build(BuildContext context) {
     // Watch providers directly so they update automatically when new data is added
     final exercisesAsync = ref.watch(exercisesProvider);
+    final locale = Localizations.localeOf(context).languageCode;
 
     // If we have existing exercise from the session, use it directly
     final hasExistingExercise = widget.existingExercise != null;
@@ -282,7 +283,7 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
                         itemBuilder: (context, index) {
                           final exercise = exercises[index];
                           return ListTile(
-                            title: Text(exercise.name),
+                            title: Text(ExerciseHelper.getLocalizedName(exercise.name, locale)),
                             selected: _selectedExerciseId == exercise.id,
                             onTap: () {
                               setState(() {
@@ -313,7 +314,7 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        widget.existingExercise!.name,
+                        ExerciseHelper.getLocalizedName(widget.existingExercise!.name, locale),
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -325,27 +326,40 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
 
               const SizedBox(height: 16),
 
-              // Weight and Reps Input
+              // Weight and Reps Wheel Pickers
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _weightController,
-                      decoration: InputDecoration(
-                        labelText: widget.l10n.weight,
-                        suffixText: 'kg',
-                      ),
-                      keyboardType: TextInputType.number,
+                    child: WheelPickerInput(
+                      type: 'weight',
+                      minValue: 5,
+                      maxValue: 550,
+                      step: 5,
+                      defaultValue: 20,
+                      fineStep: 0.5,
+                      label: widget.l10n.weight,
+                      onChanged: (value) {
+                        setState(() {
+                          _weightValue = value.toDouble();
+                        });
+                      },
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: TextField(
-                      controller: _repsController,
-                      decoration: InputDecoration(
-                        labelText: widget.l10n.reps,
-                      ),
-                      keyboardType: TextInputType.number,
+                    child: WheelPickerInput(
+                      type: 'reps',
+                      minValue: 1,
+                      maxValue: 100,
+                      step: 1,
+                      defaultValue: 8,
+                      label: widget.l10n.reps,
+                      onChanged: (value) {
+                        setState(() {
+                          _repsValue = value.toInt();
+                        });
+                      },
                     ),
                   ),
                 ],
@@ -374,8 +388,8 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
   }
 
   void _saveSet(BuildContext context) async {
-    final weight = double.tryParse(_weightController.text) ?? 0;
-    final reps = int.tryParse(_repsController.text) ?? 0;
+    final weight = _weightValue;
+    final reps = _repsValue;
     
     // Allow saving if we have an exercise selected (weight/reps can be 0)
     if (_selectedExerciseId != null || widget.existingExercise != null) {
@@ -388,7 +402,7 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
           orElse: () => Exercise(
             id: '',
             name: '',
-            bodyPartId: '',
+            bodyPartIds: '[]',
             createdAt: DateTime.now(),
           ),
         );

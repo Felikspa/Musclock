@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' show Value;
+import 'dart:convert';
 import '../../data/database/database.dart';
 import '../providers/providers.dart';
 
@@ -39,12 +41,14 @@ class ExerciseInSession {
   final String exerciseRecordId;
   final Exercise? exercise;  // Can be null if only bodyPart is stored
   final BodyPart? bodyPart;
+  final List<BodyPart> bodyParts;  // All body parts associated with this exercise
   final List<SetInSession> sets;
 
   ExerciseInSession({
     required this.exerciseRecordId,
     this.exercise,  // Nullable - for body-part-only entries
     this.bodyPart,
+    this.bodyParts = const [],
     this.sets = const [],
   });
 
@@ -52,12 +56,14 @@ class ExerciseInSession {
     String? exerciseRecordId,
     Exercise? exercise,
     BodyPart? bodyPart,
+    List<BodyPart>? bodyParts,
     List<SetInSession>? sets,
   }) {
     return ExerciseInSession(
       exerciseRecordId: exerciseRecordId ?? this.exerciseRecordId,
       exercise: exercise ?? this.exercise,
       bodyPart: bodyPart ?? this.bodyPart,
+      bodyParts: bodyParts ?? this.bodyParts,
       sets: sets ?? this.sets,
     );
   }
@@ -94,6 +100,21 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
 
   WorkoutSessionNotifier(this._ref) : super(WorkoutSessionState(startTime: DateTime.now().toUtc()));
 
+  /// Parse bodyPartIds JSON array string to List<String>
+  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
+    // Handle NULL or empty values
+    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
+    try {
+      final decoded = jsonDecode(bodyPartIdsJson);
+      if (decoded is List) {
+        return decoded.map((e) => e.toString()).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   Future<void> startNewSession() async {
     final db = _ref.read(databaseProvider);
     
@@ -120,9 +141,9 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
       
       for (final record in records) {
         // Check if this is a body-part-only record (marked with "bodyPart:" prefix)
-        if (record.exerciseId.startsWith('bodyPart:')) {
+        if (record.exerciseId != null && record.exerciseId!.startsWith('bodyPart:')) {
           // Extract body part ID from the marker
-          final bodyPartId = record.exerciseId.substring('bodyPart:'.length);
+          final bodyPartId = record.exerciseId!.substring('bodyPart:'.length);
           final bodyPart = await db.getBodyPartById(bodyPartId);
           if (bodyPart != null) {
             exercisesInSession.add(ExerciseInSession(
@@ -134,9 +155,12 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
           }
         } else {
           // Normal exercise record
-          final exercise = await db.getExerciseById(record.exerciseId);
+          final exercise = await db.getExerciseById(record.exerciseId!);
           if (exercise != null) {
-            final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
+            // Parse bodyPartIds to get the primary body part
+            final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+            final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
+            final bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
             final setRecords = await db.getSetsByExerciseRecord(record.id);
             final setsInSession = setRecords.map((s) => SetInSession(
               setRecordId: s.id,
@@ -183,6 +207,32 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     );
   }
 
+  /// Start a new session with a specific time (for past dates)
+  Future<void> startSessionWithTime(DateTime startTime) async {
+    final db = _ref.read(databaseProvider);
+    final startTimeUtc = startTime.toUtc();
+    final now = DateTime.now().toUtc();
+
+    // For past dates, always create a new session with the specified time
+    // No need to check for recent sessions since we're adding to a past date
+    final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    await db.insertSession(WorkoutSessionsCompanion.insert(
+      id: sessionId,
+      startTime: startTimeUtc,
+      createdAt: now,
+    ));
+
+    // Invalidate sessions provider to refresh UI
+    _ref.invalidate(sessionsProvider);
+
+    state = WorkoutSessionState(
+      sessionId: sessionId,
+      startTime: startTimeUtc,
+      isActive: true,
+    );
+  }
+
   Future<void> addExercise(Exercise exercise) async {
     if (state.sessionId == null) return;
 
@@ -192,15 +242,28 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     await db.insertExerciseRecord(ExerciseRecordsCompanion.insert(
       id: recordId,
       sessionId: state.sessionId!,
-      exerciseId: exercise.id,
+      exerciseId: Value(exercise.id),
     ));
 
-    final bodyPart = await db.getBodyPartById(exercise.bodyPartId);
+    // Parse bodyPartIds to get all body parts
+    final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+    final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
+    final bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
+    
+    // Get all body parts associated with this exercise
+    final List<BodyPart> bodyPartsList = [];
+    for (final bpId in bodyPartIds) {
+      final bp = await db.getBodyPartById(bpId);
+      if (bp != null) {
+        bodyPartsList.add(bp);
+      }
+    }
 
     final newExercise = ExerciseInSession(
       exerciseRecordId: recordId,
       exercise: exercise,
       bodyPart: bodyPart,
+      bodyParts: bodyPartsList,
     );
 
     state = state.copyWith(
@@ -221,7 +284,7 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     await db.insertExerciseRecord(ExerciseRecordsCompanion.insert(
       id: recordId,
       sessionId: state.sessionId!,
-      exerciseId: 'bodyPart:${bodyPart.id}',  // Marker for body-part-only
+      exerciseId: Value('bodyPart:${bodyPart.id}'),  // Marker for body-part-only
     ));
 
     final newExercise = ExerciseInSession(
@@ -327,5 +390,167 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     }
 
     state = WorkoutSessionState(startTime: DateTime.now().toUtc());
+  }
+
+  /// Start a new session with session merge logic (1-hour window)
+  /// This is called from AddExerciseSheet when saving exercises
+  /// Returns the session that was either reused or created
+  Future<WorkoutSession?> startSessionAndAddExercise() async {
+    final db = _ref.read(databaseProvider);
+    
+    // Check if there's a session within the last hour
+    final now = DateTime.now().toUtc();
+    final oneHourAgo = now.subtract(const Duration(hours: 1));
+    
+    // Get all sessions
+    final allSessions = await db.getAllSessions();
+    
+    // Find a session that started within the last hour
+    WorkoutSession? recentSession;
+    for (final session in allSessions) {
+      if (session.startTime.isAfter(oneHourAgo)) {
+        recentSession = session;
+        break;
+      }
+    }
+    
+    if (recentSession != null) {
+      // Load existing exercises for the recent session
+      final records = await db.getRecordsBySession(recentSession.id);
+      final exercisesInSession = <ExerciseInSession>[];
+      
+      for (final record in records) {
+        // Check if this is a body-part-only record (marked with "bodyPart:" prefix)
+        if (record.exerciseId != null && record.exerciseId!.startsWith('bodyPart:')) {
+          // Extract body part ID from the marker
+          final bodyPartId = record.exerciseId!.substring('bodyPart:'.length);
+          final bodyPart = await db.getBodyPartById(bodyPartId);
+          if (bodyPart != null) {
+            exercisesInSession.add(ExerciseInSession(
+              exerciseRecordId: record.id,
+              exercise: null,  // No specific exercise
+              bodyPart: bodyPart,
+              sets: [],
+            ));
+          }
+        } else {
+          // Normal exercise record
+          final exercise = await db.getExerciseById(record.exerciseId!);
+          if (exercise != null) {
+            // Parse bodyPartIds to get the primary body part
+            final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+            final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
+            final bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
+            final setRecords = await db.getSetsByExerciseRecord(record.id);
+            final setsInSession = setRecords.map((s) => SetInSession(
+              setRecordId: s.id,
+              weight: s.weight,
+              reps: s.reps,
+              orderIndex: s.orderIndex,
+            )).toList();
+            exercisesInSession.add(ExerciseInSession(
+              exerciseRecordId: record.id,
+              exercise: exercise,
+              bodyPart: bodyPart,
+              sets: setsInSession,
+            ));
+          }
+        }
+      }
+      
+      // Reuse the recent session with existing exercises
+      state = WorkoutSessionState(
+        sessionId: recentSession.id,
+        startTime: recentSession.startTime,
+        isActive: true,
+        exercises: exercisesInSession,
+      );
+      return recentSession;
+    }
+    
+    // Create new session
+    final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+    
+    await db.insertSession(WorkoutSessionsCompanion.insert(
+      id: sessionId,
+      startTime: now,
+      createdAt: now,
+    ));
+
+    // Invalidate sessions provider to refresh UI
+    _ref.invalidate(sessionsProvider);
+
+    state = WorkoutSessionState(
+      sessionId: sessionId,
+      startTime: now,
+      isActive: true,
+    );
+    
+    return WorkoutSession(id: sessionId, startTime: now, createdAt: now, bodyPartIds: '[]');
+  }
+
+  /// Load an existing session for editing
+  /// This is called when user taps on a session card to edit it
+  Future<void> loadSessionForEditing(WorkoutSession session) async {
+    final db = _ref.read(databaseProvider);
+    
+    // Load existing exercises for the session
+    final records = await db.getRecordsBySession(session.id);
+    final exercisesInSession = <ExerciseInSession>[];
+    
+    for (final record in records) {
+      // Check if this is a body-part-only record (marked with "bodyPart:" prefix)
+      if (record.exerciseId != null && record.exerciseId!.startsWith('bodyPart:')) {
+        // Extract body part ID from the marker
+        final bodyPartId = record.exerciseId!.substring('bodyPart:'.length);
+        final bodyPart = await db.getBodyPartById(bodyPartId);
+        if (bodyPart != null) {
+          // Load sets for body-part-only record
+          final setRecords = await db.getSetsByExerciseRecord(record.id);
+          final setsInSession = setRecords.map((s) => SetInSession(
+            setRecordId: s.id,
+            weight: s.weight,
+            reps: s.reps,
+            orderIndex: s.orderIndex,
+          )).toList();
+          exercisesInSession.add(ExerciseInSession(
+            exerciseRecordId: record.id,
+            exercise: null,  // No specific exercise
+            bodyPart: bodyPart,
+            sets: setsInSession,
+          ));
+        }
+      } else {
+        // Normal exercise record
+        final exercise = await db.getExerciseById(record.exerciseId!);
+        if (exercise != null) {
+          // Parse bodyPartIds to get the primary body part
+            final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+            final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
+            final bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
+          final setRecords = await db.getSetsByExerciseRecord(record.id);
+          final setsInSession = setRecords.map((s) => SetInSession(
+            setRecordId: s.id,
+            weight: s.weight,
+            reps: s.reps,
+            orderIndex: s.orderIndex,
+          )).toList();
+          exercisesInSession.add(ExerciseInSession(
+            exerciseRecordId: record.id,
+            exercise: exercise,
+            bodyPart: bodyPart,
+            sets: setsInSession,
+          ));
+        }
+      }
+    }
+    
+    // Set the session state to active with loaded exercises
+    state = WorkoutSessionState(
+      sessionId: session.id,
+      startTime: session.startTime,
+      isActive: true,
+      exercises: exercisesInSession,
+    );
   }
 }
