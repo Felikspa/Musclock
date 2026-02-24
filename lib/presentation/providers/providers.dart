@@ -112,7 +112,6 @@ final todayTrainedBodyPartsProvider = FutureProvider<Set<String>>((ref) async {
   }
   
   // Collect all body part IDs from today's exercise records
-  // (not from session.bodyPartIds which is always empty)
   final Set<String> bodyPartIds = {};
   
   for (final session in todaySessions) {
@@ -120,8 +119,19 @@ final todayTrainedBodyPartsProvider = FutureProvider<Set<String>>((ref) async {
     final records = await db.getRecordsBySession(session.id);
     
     for (final record in records) {
-      // Get the exercise to find its body parts
-      final exercise = await db.getExerciseById(record.exerciseId ?? '');
+      // Skip if exerciseId is null or empty
+      if (record.exerciseId == null || record.exerciseId!.isEmpty) continue;
+      
+      // Check if this is a body-part-only record (e.g., "bodyPart:body_glutes")
+      if (record.exerciseId!.startsWith('bodyPart:')) {
+        // Extract body part ID from the prefix
+        final bodyPartId = record.exerciseId!.substring('bodyPart:'.length);
+        bodyPartIds.add(bodyPartId);
+        continue;
+      }
+      
+      // Normal exercise - get body parts from exercise
+      final exercise = await db.getExerciseById(record.exerciseId!);
       if (exercise != null) {
         // Parse bodyPartIds from the exercise
         final bpIds = db.parseBodyPartIds(exercise.bodyPartIds);
@@ -169,7 +179,18 @@ final todayTrainedMuscleGroupsProvider = FutureProvider<Set<String>>((ref) async
         if (record.exerciseId == null || record.exerciseId!.isEmpty) continue;
         
         try {
-          // Get the exercise to find its body parts
+          // Check if this is a body-part-only record (e.g., "bodyPart:body_glutes")
+          if (record.exerciseId!.startsWith('bodyPart:')) {
+            // Extract body part ID from the prefix
+            final bodyPartId = record.exerciseId!.substring('bodyPart:'.length);
+            final name = bodyPartIdToName[bodyPartId];
+            if (name != null && name.isNotEmpty) {
+              bodyPartNames.add(name.toLowerCase());
+            }
+            continue;
+          }
+          
+          // Normal exercise - get body parts from exercise
           final exercise = await db.getExerciseById(record.exerciseId!);
           if (exercise != null) {
             // Parse bodyPartIds from the exercise - using database method

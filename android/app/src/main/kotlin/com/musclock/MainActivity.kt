@@ -1,4 +1,4 @@
-package com.example.muscle_clock
+package com.musclock
 
 import io.flutter.embedding.android.FlutterActivity
 

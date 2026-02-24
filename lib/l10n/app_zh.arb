@@ -179,5 +179,13 @@
   "stopExecution": "停止执行",
   "setTrainingDay": "设置训练日",
   "trainingDay": "训练日",
-  "confirm": "确认"
+  "confirm": "确认",
+  "deleteBodyPartConfirm": "确定要删除「{bodyPartName}」吗？",
+  "@deleteBodyPartConfirm": {
+    "placeholders": {
+      "bodyPartName": {
+        "type": "String"
+      }
+    }
+  }
 }

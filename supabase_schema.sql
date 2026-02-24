@@ -57,6 +57,7 @@ CREATE TABLE exercise_records (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,      -- 关联的训练会话
     exercise_id TEXT NOT NULL,     -- 关联的动作 (或 "bodyPart:部位ID" 格式)
+    is_deleted BOOLEAN DEFAULT false,  -- 软删除标志
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,

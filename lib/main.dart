@@ -323,7 +323,7 @@ Future<void> _updateTrainingDayOnStartup() async {
 
       // Update the day index
       await db.updateActivePlanDayIndex(newDayIndex);
-      debugPrint('[DEBUG] Auto-updated custom plan "$activePlan" to Day $newDayIndex');
+      debugPrint('[DEBUG] Auto-updated custom plan "${activePlan.name}" to Day $newDayIndex');
     }
   }
 

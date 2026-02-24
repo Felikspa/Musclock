@@ -178,5 +178,13 @@
   "confirm": "Confirm",
   "addWorkout": "Add Workout",
   "selectTime": "Select Time",
-  "workoutTime": "Workout Time"
+  "workoutTime": "Workout Time",
+  "deleteBodyPartConfirm": "Are you sure you want to delete \"{bodyPartName}\"?",
+  "@deleteBodyPartConfirm": {
+    "placeholders": {
+      "bodyPartName": {
+        "type": "String"
+      }
+    }
+  }
 }

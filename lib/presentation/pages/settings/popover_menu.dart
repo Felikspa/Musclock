@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:appflowy_ui/appflowy_ui.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../data/cloud/providers/auth_state.dart';
-import '../../../presentation/providers/providers.dart';
+import '../../../data/cloud/providers/sync_state.dart';
+import '../../../core/theme/appflowy_theme.dart';
+import '../../providers/providers.dart';
 import '../../pages/settings_page.dart' as settings;
 
 /// Popover菜单组件 - 点击更多按钮时显示
@@ -33,6 +35,7 @@ class PopoverMenu extends ConsumerWidget {
         // 第1栏：设置
         _buildMenuItem(
           context: context,
+          ref: ref,
           icon: Icons.settings_outlined,
           label: l10n.settings,
           isDark: isDark,
@@ -59,13 +62,42 @@ class PopoverMenu extends ConsumerWidget {
         // 第3栏：云同步
         _buildMenuItem(
           context: context,
+          ref: ref,
           icon: Icons.cloud_sync,
           label: l10n.cloudSync,
           isDark: isDark,
-          onTap: () {
+          onTap: () async {
             onClose();
-            // 直接触发同步
-            ref.read(syncStateProvider.notifier).syncAll();
+            // 触发同步并等待完成
+            await ref.read(syncStateProvider.notifier).syncAll();
+            // 获取同步后的状态
+            final syncState = ref.read(syncStateProvider);
+            if (!context.mounted) return;
+
+            // 显示反馈 SnackBar
+            if (syncState.status == SyncStatusState.success) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '${l10n.syncSuccess}\n'
+                    '${l10n.uploaded}: ${syncState.uploadedCount} | '
+                    '${l10n.downloaded}: ${syncState.downloadedCount}',
+                  ),
+                  backgroundColor: MusclockBrandColors.primary,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            } else if (syncState.status == SyncStatusState.error) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '${l10n.syncFailed}: ${syncState.errorMessage}',
+                  ),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
           },
         ),
       ],
@@ -74,6 +106,7 @@ class PopoverMenu extends ConsumerWidget {
 
   Widget _buildMenuItem({
     required BuildContext context,
+    required WidgetRef ref,
     required IconData icon,
     required String label,
     required bool isDark,

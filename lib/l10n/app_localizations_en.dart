@@ -520,4 +520,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workoutTime => 'Workout Time';
+
+  @override
+  String deleteBodyPartConfirm(String bodyPartName) {
+    return 'Are you sure you want to delete \"$bodyPartName\"?';
+  }
 }

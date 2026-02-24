@@ -9,17 +9,52 @@ import '../widgets/musclock_app_bar.dart';
 import '../widgets/muscle_group_helper.dart';
 import '../widgets/calendar/heatmap_bar_chart.dart';
 
-class AnalysisPage extends ConsumerWidget {
+// Preset body part IDs (cannot be deleted)
+const _presetBodyPartIds = {
+  'body_chest', 'body_back', 'body_legs', 'body_shoulders',
+  'body_arms', 'body_glutes', 'body_abs'
+};
+
+// Check if body part is custom (not preset)
+bool _isCustomBodyPart(BodyPart bodyPart) {
+  return !_presetBodyPartIds.contains(bodyPart.id);
+}
+
+class AnalysisPage extends ConsumerStatefulWidget {
   const AnalysisPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AnalysisPage> createState() => _AnalysisPageState();
+}
+
+class _AnalysisPageState extends ConsumerState<AnalysisPage> {
+  bool _isEditing = false;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: MusclockAppBar(title: l10n.analysis),
+        appBar: MusclockAppBar(
+          title: l10n.analysis,
+          actions: [
+            // Edit button (same style as PlanPage)
+            IconButton(
+              icon: Icon(
+                _isEditing ? Icons.close : Icons.edit,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+              onPressed: () {
+                setState(() {
+                  _isEditing = !_isEditing;
+                });
+              },
+            ),
+          ],
+        ),
         body: Column(
           children: [
             // Tab Bar
@@ -54,7 +89,7 @@ class AnalysisPage extends ConsumerWidget {
             Expanded(
               child: TabBarView(
                 children: [
-                  _StatisticsTab(l10n: l10n),
+                  _StatisticsTab(l10n: l10n, isEditing: _isEditing),
                   _HeatmapTab(l10n: l10n),
                 ],
               ),
@@ -68,8 +103,9 @@ class AnalysisPage extends ConsumerWidget {
 
 class _StatisticsTab extends ConsumerWidget {
   final AppLocalizations l10n;
+  final bool isEditing;
 
-  const _StatisticsTab({required this.l10n});
+  const _StatisticsTab({required this.l10n, required this.isEditing});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -112,6 +148,7 @@ class _StatisticsTab extends ConsumerWidget {
                 return _BodyPartStatCard(
                   bodyPart: bodyParts[index],
                   l10n: l10n,
+                  isEditing: isEditing,
                 );
               },
             );
@@ -225,85 +262,137 @@ class _StatRow extends StatelessWidget {
 class _BodyPartStatCard extends ConsumerWidget {
   final BodyPart bodyPart;
   final AppLocalizations l10n;
+  final bool isEditing;
 
-  const _BodyPartStatCard({required this.bodyPart, required this.l10n});
+  const _BodyPartStatCard({
+    required this.bodyPart,
+    required this.l10n,
+    required this.isEditing,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(sessionsProvider);
     final locale = Localizations.localeOf(context).languageCode;
-    
+    final isCustom = _isCustomBodyPart(bodyPart);
+
     // Get localized body part name
     final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bodyPart.name);
     final displayBodyPartName = muscleGroup?.getLocalizedName(locale) ?? bodyPart.name;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              displayBodyPartName,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            sessionsAsync.when(
-              data: (sessions) {
-                // Get sessions containing this body part
-                final repo = ref.read(sessionRepositoryProvider);
-                return FutureBuilder(
-                  future: repo.getSessionsByBodyPart(bodyPart.id),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const CircularProgressIndicator();
-                    }
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayBodyPartName,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                sessionsAsync.when(
+                  data: (sessions) {
+                    // Get sessions containing this body part
+                    final repo = ref.read(sessionRepositoryProvider);
+                    return FutureBuilder(
+                      future: repo.getSessionsByBodyPart(bodyPart.id),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const CircularProgressIndicator();
+                        }
 
-                    final bpSessions = snapshot.data!;
-                    if (bpSessions.isEmpty) {
-                      return Row(
-                        children: [
-                          Icon(Icons.info_outline, size: 16, color: Theme.of(context).colorScheme.primary),
-                          const SizedBox(width: 8),
-                          Text(l10n.noData),
-                        ],
-                      );
-                    }
+                        final bpSessions = snapshot.data!;
+                        if (bpSessions.isEmpty) {
+                          return Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 16, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 8),
+                              Text(l10n.noData),
+                            ],
+                          );
+                        }
 
-                    final now = DateTimeUtils.nowUtc;
-                    final lastSession = bpSessions.first;
-                    final totalHours = now.difference(lastSession.startTime).inHours;
-                    final restDays = totalHours ~/ 24;
-                    final restHours = totalHours % 24;
+                        final now = DateTimeUtils.nowUtc;
+                        final lastSession = bpSessions.first;
+                        final totalHours = now.difference(lastSession.startTime).inHours;
+                        final restDays = totalHours ~/ 24;
+                        final restHours = totalHours % 24;
 
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _MiniStat(
-                            label: l10n.currentRest,
-                            value: '$restDays ${l10n.daysAbbr}',
-                            subValue: '$restHours ${l10n.hoursAbbr}',
-                          ),
-                        ),
-                        Expanded(
-                          child: _MiniStat(
-                            label: l10n.frequency,
-                            value: '${bpSessions.length}x',
-                          ),
-                        ),
-                      ],
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _MiniStat(
+                                label: l10n.currentRest,
+                                value: '$restDays ${l10n.daysAbbr}',
+                                subValue: '$restHours ${l10n.hoursAbbr}',
+                              ),
+                            ),
+                            Expanded(
+                              child: _MiniStat(
+                                label: l10n.frequency,
+                                value: '${bpSessions.length}x',
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
-                );
-              },
-              loading: () => const CircularProgressIndicator(),
-              error: (e, s) => Text('Error: $e'),
+                  loading: () => const CircularProgressIndicator(),
+                  error: (e, s) => Text('Error: $e'),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          // Delete button for custom body parts in edit mode
+          if (isEditing && isCustom)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.delete,
+                  size: 20,
+                  color: Colors.red,
+                ),
+                onPressed: () => _showDeleteConfirmation(context, ref, displayBodyPartName),
+                tooltip: l10n.delete,
+              ),
+            ),
+        ],
       ),
     );
+  }
+
+  Future<void> _showDeleteConfirmation(BuildContext context, WidgetRef ref, String displayName) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.delete),
+        content: Text(l10n.deleteBodyPartConfirm(displayName)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ref.read(sessionRepositoryProvider).softDeleteBodyPart(bodyPart.id);
+      ref.invalidate(bodyPartsProvider);
+    }
   }
 }
 

@@ -41,6 +41,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             // 使用正式签名
             signingConfig = signingConfigs.getByName("release")

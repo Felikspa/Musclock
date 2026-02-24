@@ -519,4 +519,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get workoutTime => '训练时间';
+
+  @override
+  String deleteBodyPartConfirm(String bodyPartName) {
+    return '确定要删除「$bodyPartName」吗？';
+  }
 }
