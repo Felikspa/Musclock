@@ -2487,6 +2487,367 @@ class PlanItemsCompanion extends UpdateCompanion<PlanItem> {
   }
 }
 
+class $BodyMetricsTable extends BodyMetrics
+    with TableInfo<$BodyMetricsTable, BodyMetric> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BodyMetricsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _weightMeta = const VerificationMeta('weight');
+  @override
+  late final GeneratedColumn<double> weight = GeneratedColumn<double>(
+    'weight',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _heightMeta = const VerificationMeta('height');
+  @override
+  late final GeneratedColumn<double> height = GeneratedColumn<double>(
+    'height',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _genderMeta = const VerificationMeta('gender');
+  @override
+  late final GeneratedColumn<String> gender = GeneratedColumn<String>(
+    'gender',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _recordedAtMeta = const VerificationMeta(
+    'recordedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
+    'recorded_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    weight,
+    height,
+    gender,
+    recordedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'body_metrics';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BodyMetric> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('weight')) {
+      context.handle(
+        _weightMeta,
+        weight.isAcceptableOrUnknown(data['weight']!, _weightMeta),
+      );
+    }
+    if (data.containsKey('height')) {
+      context.handle(
+        _heightMeta,
+        height.isAcceptableOrUnknown(data['height']!, _heightMeta),
+      );
+    }
+    if (data.containsKey('gender')) {
+      context.handle(
+        _genderMeta,
+        gender.isAcceptableOrUnknown(data['gender']!, _genderMeta),
+      );
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+        _recordedAtMeta,
+        recordedAt.isAcceptableOrUnknown(data['recorded_at']!, _recordedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BodyMetric map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BodyMetric(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      weight: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}weight'],
+      ),
+      height: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}height'],
+      ),
+      gender: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}gender'],
+      ),
+      recordedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}recorded_at'],
+      )!,
+    );
+  }
+
+  @override
+  $BodyMetricsTable createAlias(String alias) {
+    return $BodyMetricsTable(attachedDatabase, alias);
+  }
+}
+
+class BodyMetric extends DataClass implements Insertable<BodyMetric> {
+  final String id;
+  final double? weight;
+  final double? height;
+  final String? gender;
+  final DateTime recordedAt;
+  const BodyMetric({
+    required this.id,
+    this.weight,
+    this.height,
+    this.gender,
+    required this.recordedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || weight != null) {
+      map['weight'] = Variable<double>(weight);
+    }
+    if (!nullToAbsent || height != null) {
+      map['height'] = Variable<double>(height);
+    }
+    if (!nullToAbsent || gender != null) {
+      map['gender'] = Variable<String>(gender);
+    }
+    map['recorded_at'] = Variable<DateTime>(recordedAt);
+    return map;
+  }
+
+  BodyMetricsCompanion toCompanion(bool nullToAbsent) {
+    return BodyMetricsCompanion(
+      id: Value(id),
+      weight: weight == null && nullToAbsent
+          ? const Value.absent()
+          : Value(weight),
+      height: height == null && nullToAbsent
+          ? const Value.absent()
+          : Value(height),
+      gender: gender == null && nullToAbsent
+          ? const Value.absent()
+          : Value(gender),
+      recordedAt: Value(recordedAt),
+    );
+  }
+
+  factory BodyMetric.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BodyMetric(
+      id: serializer.fromJson<String>(json['id']),
+      weight: serializer.fromJson<double?>(json['weight']),
+      height: serializer.fromJson<double?>(json['height']),
+      gender: serializer.fromJson<String?>(json['gender']),
+      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'weight': serializer.toJson<double?>(weight),
+      'height': serializer.toJson<double?>(height),
+      'gender': serializer.toJson<String?>(gender),
+      'recordedAt': serializer.toJson<DateTime>(recordedAt),
+    };
+  }
+
+  BodyMetric copyWith({
+    String? id,
+    Value<double?> weight = const Value.absent(),
+    Value<double?> height = const Value.absent(),
+    Value<String?> gender = const Value.absent(),
+    DateTime? recordedAt,
+  }) => BodyMetric(
+    id: id ?? this.id,
+    weight: weight.present ? weight.value : this.weight,
+    height: height.present ? height.value : this.height,
+    gender: gender.present ? gender.value : this.gender,
+    recordedAt: recordedAt ?? this.recordedAt,
+  );
+  BodyMetric copyWithCompanion(BodyMetricsCompanion data) {
+    return BodyMetric(
+      id: data.id.present ? data.id.value : this.id,
+      weight: data.weight.present ? data.weight.value : this.weight,
+      height: data.height.present ? data.height.value : this.height,
+      gender: data.gender.present ? data.gender.value : this.gender,
+      recordedAt: data.recordedAt.present
+          ? data.recordedAt.value
+          : this.recordedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyMetric(')
+          ..write('id: $id, ')
+          ..write('weight: $weight, ')
+          ..write('height: $height, ')
+          ..write('gender: $gender, ')
+          ..write('recordedAt: $recordedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, weight, height, gender, recordedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BodyMetric &&
+          other.id == this.id &&
+          other.weight == this.weight &&
+          other.height == this.height &&
+          other.gender == this.gender &&
+          other.recordedAt == this.recordedAt);
+}
+
+class BodyMetricsCompanion extends UpdateCompanion<BodyMetric> {
+  final Value<String> id;
+  final Value<double?> weight;
+  final Value<double?> height;
+  final Value<String?> gender;
+  final Value<DateTime> recordedAt;
+  final Value<int> rowid;
+  const BodyMetricsCompanion({
+    this.id = const Value.absent(),
+    this.weight = const Value.absent(),
+    this.height = const Value.absent(),
+    this.gender = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BodyMetricsCompanion.insert({
+    required String id,
+    this.weight = const Value.absent(),
+    this.height = const Value.absent(),
+    this.gender = const Value.absent(),
+    required DateTime recordedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       recordedAt = Value(recordedAt);
+  static Insertable<BodyMetric> custom({
+    Expression<String>? id,
+    Expression<double>? weight,
+    Expression<double>? height,
+    Expression<String>? gender,
+    Expression<DateTime>? recordedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (weight != null) 'weight': weight,
+      if (height != null) 'height': height,
+      if (gender != null) 'gender': gender,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BodyMetricsCompanion copyWith({
+    Value<String>? id,
+    Value<double?>? weight,
+    Value<double?>? height,
+    Value<String?>? gender,
+    Value<DateTime>? recordedAt,
+    Value<int>? rowid,
+  }) {
+    return BodyMetricsCompanion(
+      id: id ?? this.id,
+      weight: weight ?? this.weight,
+      height: height ?? this.height,
+      gender: gender ?? this.gender,
+      recordedAt: recordedAt ?? this.recordedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (weight.present) {
+      map['weight'] = Variable<double>(weight.value);
+    }
+    if (height.present) {
+      map['height'] = Variable<double>(height.value);
+    }
+    if (gender.present) {
+      map['gender'] = Variable<String>(gender.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyMetricsCompanion(')
+          ..write('id: $id, ')
+          ..write('weight: $weight, ')
+          ..write('height: $height, ')
+          ..write('gender: $gender, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2501,6 +2862,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SetRecordsTable setRecords = $SetRecordsTable(this);
   late final $TrainingPlansTable trainingPlans = $TrainingPlansTable(this);
   late final $PlanItemsTable planItems = $PlanItemsTable(this);
+  late final $BodyMetricsTable bodyMetrics = $BodyMetricsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2513,6 +2875,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     setRecords,
     trainingPlans,
     planItems,
+    bodyMetrics,
   ];
 }
 
@@ -4781,6 +5144,208 @@ typedef $$PlanItemsTableProcessedTableManager =
       PlanItem,
       PrefetchHooks Function({bool planId})
     >;
+typedef $$BodyMetricsTableCreateCompanionBuilder =
+    BodyMetricsCompanion Function({
+      required String id,
+      Value<double?> weight,
+      Value<double?> height,
+      Value<String?> gender,
+      required DateTime recordedAt,
+      Value<int> rowid,
+    });
+typedef $$BodyMetricsTableUpdateCompanionBuilder =
+    BodyMetricsCompanion Function({
+      Value<String> id,
+      Value<double?> weight,
+      Value<double?> height,
+      Value<String?> gender,
+      Value<DateTime> recordedAt,
+      Value<int> rowid,
+    });
+
+class $$BodyMetricsTableFilterComposer
+    extends Composer<_$AppDatabase, $BodyMetricsTable> {
+  $$BodyMetricsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get weight => $composableBuilder(
+    column: $table.weight,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get height => $composableBuilder(
+    column: $table.height,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get gender => $composableBuilder(
+    column: $table.gender,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BodyMetricsTableOrderingComposer
+    extends Composer<_$AppDatabase, $BodyMetricsTable> {
+  $$BodyMetricsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get weight => $composableBuilder(
+    column: $table.weight,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get height => $composableBuilder(
+    column: $table.height,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get gender => $composableBuilder(
+    column: $table.gender,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BodyMetricsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BodyMetricsTable> {
+  $$BodyMetricsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<double> get weight =>
+      $composableBuilder(column: $table.weight, builder: (column) => column);
+
+  GeneratedColumn<double> get height =>
+      $composableBuilder(column: $table.height, builder: (column) => column);
+
+  GeneratedColumn<String> get gender =>
+      $composableBuilder(column: $table.gender, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$BodyMetricsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BodyMetricsTable,
+          BodyMetric,
+          $$BodyMetricsTableFilterComposer,
+          $$BodyMetricsTableOrderingComposer,
+          $$BodyMetricsTableAnnotationComposer,
+          $$BodyMetricsTableCreateCompanionBuilder,
+          $$BodyMetricsTableUpdateCompanionBuilder,
+          (
+            BodyMetric,
+            BaseReferences<_$AppDatabase, $BodyMetricsTable, BodyMetric>,
+          ),
+          BodyMetric,
+          PrefetchHooks Function()
+        > {
+  $$BodyMetricsTableTableManager(_$AppDatabase db, $BodyMetricsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BodyMetricsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BodyMetricsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BodyMetricsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<double?> weight = const Value.absent(),
+                Value<double?> height = const Value.absent(),
+                Value<String?> gender = const Value.absent(),
+                Value<DateTime> recordedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BodyMetricsCompanion(
+                id: id,
+                weight: weight,
+                height: height,
+                gender: gender,
+                recordedAt: recordedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<double?> weight = const Value.absent(),
+                Value<double?> height = const Value.absent(),
+                Value<String?> gender = const Value.absent(),
+                required DateTime recordedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => BodyMetricsCompanion.insert(
+                id: id,
+                weight: weight,
+                height: height,
+                gender: gender,
+                recordedAt: recordedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BodyMetricsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BodyMetricsTable,
+      BodyMetric,
+      $$BodyMetricsTableFilterComposer,
+      $$BodyMetricsTableOrderingComposer,
+      $$BodyMetricsTableAnnotationComposer,
+      $$BodyMetricsTableCreateCompanionBuilder,
+      $$BodyMetricsTableUpdateCompanionBuilder,
+      (
+        BodyMetric,
+        BaseReferences<_$AppDatabase, $BodyMetricsTable, BodyMetric>,
+      ),
+      BodyMetric,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4799,4 +5364,6 @@ class $AppDatabaseManager {
       $$TrainingPlansTableTableManager(_db, _db.trainingPlans);
   $$PlanItemsTableTableManager get planItems =>
       $$PlanItemsTableTableManager(_db, _db.planItems);
+  $$BodyMetricsTableTableManager get bodyMetrics =>
+      $$BodyMetricsTableTableManager(_db, _db.bodyMetrics);
 }

@@ -8,6 +8,7 @@ import '../providers/providers.dart';
 import '../widgets/musclock_app_bar.dart';
 import '../widgets/muscle_group_helper.dart';
 import '../widgets/calendar/heatmap_bar_chart.dart';
+import 'analysis/training_analysis_detail_page.dart';
 
 // Preset body part IDs (cannot be deleted)
 const _presetBodyPartIds = {
@@ -36,7 +37,7 @@ class _AnalysisPageState extends ConsumerState<AnalysisPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: MusclockAppBar(
           title: l10n.analysis,
@@ -83,6 +84,7 @@ class _AnalysisPageState extends ConsumerState<AnalysisPage> {
                 tabs: [
                   Tab(text: l10n.statistics),
                   Tab(text: l10n.heatmap),
+                  Tab(text: l10n.detail),
                 ],
               ),
             ),
@@ -91,6 +93,7 @@ class _AnalysisPageState extends ConsumerState<AnalysisPage> {
                 children: [
                   _StatisticsTab(l10n: l10n, isEditing: _isEditing),
                   _HeatmapTab(l10n: l10n),
+                  const TrainingAnalysisDetailPage(),
                 ],
               ),
             ),

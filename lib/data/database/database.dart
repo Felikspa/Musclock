@@ -87,6 +87,18 @@ class PlanItems extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+// Body metrics table for storing user body measurements
+class BodyMetrics extends Table {
+  TextColumn get id => text()();
+  RealColumn get weight => real().nullable()();      // Weight in kg
+  RealColumn get height => real().nullable()();       // Height in cm
+  TextColumn get gender => text().nullable()();      // Gender: male/female
+  DateTimeColumn get recordedAt => dateTime()();
+  
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 // Data class for JOIN queries
 class ExerciseRecordWithDetails {
   final ExerciseRecord record;
@@ -112,6 +124,7 @@ class ExerciseRecordWithDetails {
   SetRecords,
   TrainingPlans,
   PlanItems,
+  BodyMetrics,
 ])
 class AppDatabase extends _$AppDatabase {
   // Singleton pattern - ensure only one instance exists
@@ -128,7 +141,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase() => AppDatabase.instance;
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -155,6 +168,10 @@ class AppDatabase extends _$AppDatabase {
         if (from < 5) {
           // Add lastExecutedAt field for sorting plans by execution time
           await m.addColumn(trainingPlans, trainingPlans.lastExecutedAt);
+        }
+        if (from < 6) {
+          // Add BodyMetrics table for body measurements
+          await m.createTable(bodyMetrics);
         }
       },
     );
@@ -694,6 +711,44 @@ class AppDatabase extends _$AppDatabase {
     
     return dailyVolumes;
   }
+  
+  // ============ BodyMetrics Operations ============
+  
+  /// Get the latest body metrics record
+  Future<BodyMetric?> getLatestBodyMetrics() async {
+    final results = await (select(bodyMetrics)
+      ..orderBy([(t) => OrderingTerm.desc(t.recordedAt)])
+      ..limit(1))
+      .get();
+    return results.isEmpty ? null : results.first;
+  }
+  
+  /// Watch the latest body metrics record
+  Stream<BodyMetric?> watchLatestBodyMetrics() {
+    return (select(bodyMetrics)
+      ..orderBy([(t) => OrderingTerm.desc(t.recordedAt)])
+      ..limit(1))
+      .watchSingleOrNull();
+  }
+  
+  /// Get all body metrics records
+  Future<List<BodyMetric>> getAllBodyMetrics() async {
+    return (select(bodyMetrics)
+      ..orderBy([(t) => OrderingTerm.desc(t.recordedAt)]))
+      .get();
+  }
+  
+  /// Insert a new body metrics record
+  Future<int> insertBodyMetrics(BodyMetricsCompanion entry) =>
+      into(bodyMetrics).insert(entry);
+  
+  /// Update body metrics record
+  Future<bool> updateBodyMetrics(BodyMetricsCompanion entry) =>
+      update(bodyMetrics).replace(entry);
+  
+  /// Delete body metrics record
+  Future<int> deleteBodyMetrics(String id) =>
+      (delete(bodyMetrics)..where((t) => t.id.equals(id))).go();
 }
 
 LazyDatabase _openConnection() {

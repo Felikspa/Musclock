@@ -187,5 +187,33 @@
         "type": "String"
       }
     }
-  }
+  },
+  "detail": "详情",
+  "bodyMetrics": "身体数据",
+  "height": "身高",
+  "gender": "性别",
+  "male": "男",
+  "female": "女",
+  "bmi": "BMI",
+  "relativeStrength": "相对力量",
+  "estimated1RM": "预估1RM",
+  "personalRecords": "个人纪录",
+  "weightPR": "重量PR",
+  "volumePR": "容量PR",
+  "repsPR": "次数PR",
+  "volumeStats": "容量统计",
+  "strengthPerformance": "力量表现",
+  "exerciseAnalysis": "动作分析",
+  "totalTonnage": "总训练量",
+  "weeklyVolume": "周容量",
+  "muscleDistribution": "肌群分布",
+  "e1RMGrowth": "1RM增长",
+  "exercisePreference": "动作偏好",
+  "bodyMetricsSaved": "身体数据保存成功",
+  "enterHeight": "请输入身高",
+  "enterWeight": "请输入体重",
+  "selectGender": "请选择性别",
+  "kg": "公斤",
+  "cm": "厘米",
+  "perKg": "/公斤"
 }

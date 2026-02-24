@@ -48,10 +48,13 @@ class CloudSettingsContent extends ConsumerWidget {
                         await ref.read(syncStateProvider.notifier).syncAll();
                         // Get the updated sync state after sync completes
                         final newState = ref.read(syncStateProvider);
-                        if (!context.mounted) return;
+
+                        // 使用全局 ScaffoldMessengerKey 获取 Messenger
+                        final messenger = ref.read(scaffoldMessengerKeyProvider).currentState;
+                        if (messenger == null) return;
 
                         if (newState.status == SyncStatusState.success) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(
                               content: Text(
                                 '${l10n.syncSuccess}\n'
@@ -63,7 +66,7 @@ class CloudSettingsContent extends ConsumerWidget {
                             ),
                           );
                         } else if (newState.status == SyncStatusState.error) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(
                               content: Text(
                                 '${l10n.syncFailed}: ${newState.errorMessage}',

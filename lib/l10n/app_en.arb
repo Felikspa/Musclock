@@ -186,5 +186,33 @@
         "type": "String"
       }
     }
-  }
+  },
+  "detail": "Detail",
+  "bodyMetrics": "Body Metrics",
+  "height": "Height",
+  "gender": "Gender",
+  "male": "Male",
+  "female": "Female",
+  "bmi": "BMI",
+  "relativeStrength": "Relative Strength",
+  "estimated1RM": "Est. 1RM",
+  "personalRecords": "Personal Records",
+  "weightPR": "Weight PR",
+  "volumePR": "Volume PR",
+  "repsPR": "Reps PR",
+  "volumeStats": "Volume Stats",
+  "strengthPerformance": "Strength Performance",
+  "exerciseAnalysis": "Exercise Analysis",
+  "totalTonnage": "Total Tonnage",
+  "weeklyVolume": "Weekly Volume",
+  "muscleDistribution": "Muscle Distribution",
+  "e1RMGrowth": "1RM Growth",
+  "exercisePreference": "Exercise Preference",
+  "bodyMetricsSaved": "Body metrics saved successfully",
+  "enterHeight": "Enter height",
+  "enterWeight": "Enter weight",
+  "selectGender": "Select gender",
+  "kg": "kg",
+  "cm": "cm",
+  "perKg": "/kg"
 }

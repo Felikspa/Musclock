@@ -30,6 +30,7 @@ class _MuscleClockAppState extends ConsumerState<MuscleClockApp> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider);
+    final scaffoldKey = ref.watch(scaffoldMessengerKeyProvider);
 
     return MaterialApp(
       title: 'Muscle Clock',
@@ -49,6 +50,7 @@ class _MuscleClockAppState extends ConsumerState<MuscleClockApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       home: const HomePage(),
+      scaffoldMessengerKey: scaffoldKey,
       routes: {
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),

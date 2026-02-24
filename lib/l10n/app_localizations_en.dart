@@ -525,4 +525,88 @@ class AppLocalizationsEn extends AppLocalizations {
   String deleteBodyPartConfirm(String bodyPartName) {
     return 'Are you sure you want to delete \"$bodyPartName\"?';
   }
+
+  @override
+  String get detail => 'Detail';
+
+  @override
+  String get bodyMetrics => 'Body Metrics';
+
+  @override
+  String get height => 'Height';
+
+  @override
+  String get gender => 'Gender';
+
+  @override
+  String get male => 'Male';
+
+  @override
+  String get female => 'Female';
+
+  @override
+  String get bmi => 'BMI';
+
+  @override
+  String get relativeStrength => 'Relative Strength';
+
+  @override
+  String get estimated1RM => 'Est. 1RM';
+
+  @override
+  String get personalRecords => 'Personal Records';
+
+  @override
+  String get weightPR => 'Weight PR';
+
+  @override
+  String get volumePR => 'Volume PR';
+
+  @override
+  String get repsPR => 'Reps PR';
+
+  @override
+  String get volumeStats => 'Volume Stats';
+
+  @override
+  String get strengthPerformance => 'Strength Performance';
+
+  @override
+  String get exerciseAnalysis => 'Exercise Analysis';
+
+  @override
+  String get totalTonnage => 'Total Tonnage';
+
+  @override
+  String get weeklyVolume => 'Weekly Volume';
+
+  @override
+  String get muscleDistribution => 'Muscle Distribution';
+
+  @override
+  String get e1RMGrowth => '1RM Growth';
+
+  @override
+  String get exercisePreference => 'Exercise Preference';
+
+  @override
+  String get bodyMetricsSaved => 'Body metrics saved successfully';
+
+  @override
+  String get enterHeight => 'Enter height';
+
+  @override
+  String get enterWeight => 'Enter weight';
+
+  @override
+  String get selectGender => 'Select gender';
+
+  @override
+  String get kg => 'kg';
+
+  @override
+  String get cm => 'cm';
+
+  @override
+  String get perKg => '/kg';
 }

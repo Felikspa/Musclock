@@ -269,6 +269,7 @@ New Session → Add Exercise → Add Sets → Save
 
 |  | 版本 | 日期 | 类型 | 说明 |
 |---|------|------|------|------|
+|  | **v0.8.0-beta.1** | 2026-02-25 | Feature | **Analysis页面训练分析详情功能**<br>- 在Analysis页面新增"详情"Tab<br>- 创建训练分析详情页面TrainingAnalysisDetailPage<br>- 新增BodyMetrics数据表存储身体数据(体重/身高/性别)<br>- 身体数据卡片支持编辑，BMI计算和显示<br>- 容量统计Tab: 总训练量(tonnage)/周容量柱状图/肌群分布<br>- 力量表现Tab: 个人纪录(PR)列表/各动作e1RM排名<br>- 动作分析Tab: 动作偏好饼图分布<br>- 添加中英文本地化支持 |
 |  | **v0.7.0-beta.1** | 2026-02-25 | Feature | **Analysis页面部位编辑功能**<br>- 在顶部导航栏添加编辑按钮（和Plan页相同样式）<br>- 点击编辑按钮后，自定义部位卡片右上角显示红色删除按钮<br>- 预置部位（Chest/Back/Legs等）不显示删除按钮<br>- 点击删除按钮弹出确认对话框，确认后执行软删除<br>- 添加中英文本地化文本支持 |
 |  | **v0.6.3-beta.1** | 2026-02-24 | Bug Fix | **训练详情编辑页保存修复**<br>- 修复 Drift 数据库 update 方法使用 `.replace()` 导致数据无法正确保存的问题<br>- 改为使用 `.write()` 方法更新特定字段<br>- 新增 UUID 生成方式解决快速添加 set 时 ID 冲突问题 |
 |  | **v1.0.0+1** | 2026-02-24 | Feature | **Plan交互逻辑优化**<br>- 点开PlanPage默认选中当前执行的计划<br>- 计划列表按最近执行顺序排序，最近执行的在前<br>- 预设计划改为Day 1-Day 7显示（不再用Monday-Sunday）<br>- 预设计划可自由编辑，与自定义计划同等对待 |

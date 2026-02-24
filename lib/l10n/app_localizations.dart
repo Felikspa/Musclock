@@ -1123,6 +1123,174 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Are you sure you want to delete \"{bodyPartName}\"?'**
   String deleteBodyPartConfirm(String bodyPartName);
+
+  /// No description provided for @detail.
+  ///
+  /// In en, this message translates to:
+  /// **'Detail'**
+  String get detail;
+
+  /// No description provided for @bodyMetrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Body Metrics'**
+  String get bodyMetrics;
+
+  /// No description provided for @height.
+  ///
+  /// In en, this message translates to:
+  /// **'Height'**
+  String get height;
+
+  /// No description provided for @gender.
+  ///
+  /// In en, this message translates to:
+  /// **'Gender'**
+  String get gender;
+
+  /// No description provided for @male.
+  ///
+  /// In en, this message translates to:
+  /// **'Male'**
+  String get male;
+
+  /// No description provided for @female.
+  ///
+  /// In en, this message translates to:
+  /// **'Female'**
+  String get female;
+
+  /// No description provided for @bmi.
+  ///
+  /// In en, this message translates to:
+  /// **'BMI'**
+  String get bmi;
+
+  /// No description provided for @relativeStrength.
+  ///
+  /// In en, this message translates to:
+  /// **'Relative Strength'**
+  String get relativeStrength;
+
+  /// No description provided for @estimated1RM.
+  ///
+  /// In en, this message translates to:
+  /// **'Est. 1RM'**
+  String get estimated1RM;
+
+  /// No description provided for @personalRecords.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Records'**
+  String get personalRecords;
+
+  /// No description provided for @weightPR.
+  ///
+  /// In en, this message translates to:
+  /// **'Weight PR'**
+  String get weightPR;
+
+  /// No description provided for @volumePR.
+  ///
+  /// In en, this message translates to:
+  /// **'Volume PR'**
+  String get volumePR;
+
+  /// No description provided for @repsPR.
+  ///
+  /// In en, this message translates to:
+  /// **'Reps PR'**
+  String get repsPR;
+
+  /// No description provided for @volumeStats.
+  ///
+  /// In en, this message translates to:
+  /// **'Volume Stats'**
+  String get volumeStats;
+
+  /// No description provided for @strengthPerformance.
+  ///
+  /// In en, this message translates to:
+  /// **'Strength Performance'**
+  String get strengthPerformance;
+
+  /// No description provided for @exerciseAnalysis.
+  ///
+  /// In en, this message translates to:
+  /// **'Exercise Analysis'**
+  String get exerciseAnalysis;
+
+  /// No description provided for @totalTonnage.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Tonnage'**
+  String get totalTonnage;
+
+  /// No description provided for @weeklyVolume.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly Volume'**
+  String get weeklyVolume;
+
+  /// No description provided for @muscleDistribution.
+  ///
+  /// In en, this message translates to:
+  /// **'Muscle Distribution'**
+  String get muscleDistribution;
+
+  /// No description provided for @e1RMGrowth.
+  ///
+  /// In en, this message translates to:
+  /// **'1RM Growth'**
+  String get e1RMGrowth;
+
+  /// No description provided for @exercisePreference.
+  ///
+  /// In en, this message translates to:
+  /// **'Exercise Preference'**
+  String get exercisePreference;
+
+  /// No description provided for @bodyMetricsSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Body metrics saved successfully'**
+  String get bodyMetricsSaved;
+
+  /// No description provided for @enterHeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter height'**
+  String get enterHeight;
+
+  /// No description provided for @enterWeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter weight'**
+  String get enterWeight;
+
+  /// No description provided for @selectGender.
+  ///
+  /// In en, this message translates to:
+  /// **'Select gender'**
+  String get selectGender;
+
+  /// No description provided for @kg.
+  ///
+  /// In en, this message translates to:
+  /// **'kg'**
+  String get kg;
+
+  /// No description provided for @cm.
+  ///
+  /// In en, this message translates to:
+  /// **'cm'**
+  String get cm;
+
+  /// No description provided for @perKg.
+  ///
+  /// In en, this message translates to:
+  /// **'/kg'**
+  String get perKg;
 }
 
 class _AppLocalizationsDelegate

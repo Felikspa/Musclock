@@ -10,13 +10,19 @@ import '../../pages/settings_page.dart' as settings;
 
 /// Popover菜单组件 - 点击更多按钮时显示
 /// 两栏布局：设置 + 账户/登录
-class PopoverMenu extends ConsumerWidget {
+class PopoverMenu extends ConsumerStatefulWidget {
   final VoidCallback onClose;
 
   const PopoverMenu({super.key, required this.onClose});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PopoverMenu> createState() => _PopoverMenuState();
+}
+
+class _PopoverMenuState extends ConsumerState<PopoverMenu> {
+  
+  @override
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authState = ref.watch(authStateProvider);
     // 使用AppFlowyThemeData
@@ -41,7 +47,7 @@ class PopoverMenu extends ConsumerWidget {
           isDark: isDark,
           onTap: () {
             // 关闭popover
-            onClose();
+            widget.onClose();
             // 打开设置页面
             Navigator.push(
               context,
@@ -57,6 +63,7 @@ class PopoverMenu extends ConsumerWidget {
           isDark: isDark,
           theme: theme,
           l10n: l10n,
+          onClose: widget.onClose,
         ),
         const SizedBox(height: 4),
         // 第3栏：云同步
@@ -67,37 +74,48 @@ class PopoverMenu extends ConsumerWidget {
           label: l10n.cloudSync,
           isDark: isDark,
           onTap: () async {
-            onClose();
+            // 使用全局 ScaffoldMessengerKey 获取 Messenger
+            // 这样即使在 Overlay 中也能正常显示 Snackbar
+            final messenger = ref.read(scaffoldMessengerKeyProvider).currentState;
+            if (messenger == null) return;
+            
+            // 显示"同步进行中"提示
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(l10n.syncing),
+                backgroundColor: MusclockBrandColors.primary,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            
+            // 关闭popover
+            widget.onClose();
+            
             // 触发同步并等待完成
             await ref.read(syncStateProvider.notifier).syncAll();
+            
+            // 等待状态更新
+            await Future.delayed(const Duration(milliseconds: 100));
+            
             // 获取同步后的状态
             final syncState = ref.read(syncStateProvider);
-            if (!context.mounted) return;
-
-            // 显示反馈 SnackBar
-            if (syncState.status == SyncStatusState.success) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '${l10n.syncSuccess}\n'
-                    '${l10n.uploaded}: ${syncState.uploadedCount} | '
-                    '${l10n.downloaded}: ${syncState.downloadedCount}',
-                  ),
-                  backgroundColor: MusclockBrandColors.primary,
-                  duration: const Duration(seconds: 3),
+            
+            // 显示结果 SnackBar
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  syncState.status == SyncStatusState.success
+                      ? '${l10n.syncSuccess}\n'
+                        '${l10n.uploaded}: ${syncState.uploadedCount} | '
+                        '${l10n.downloaded}: ${syncState.downloadedCount}'
+                      : '${l10n.syncFailed}: ${syncState.errorMessage}',
                 ),
-              );
-            } else if (syncState.status == SyncStatusState.error) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '${l10n.syncFailed}: ${syncState.errorMessage}',
-                  ),
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 4),
-                ),
-              );
-            }
+                backgroundColor: syncState.status == SyncStatusState.success
+                    ? MusclockBrandColors.primary
+                    : Colors.red,
+                duration: Duration(seconds: syncState.status == SyncStatusState.success ? 3 : 4),
+              ),
+            );
           },
         ),
       ],
@@ -144,6 +162,7 @@ class PopoverMenu extends ConsumerWidget {
     required bool isDark,
     AppFlowyThemeData? theme,
     required AppLocalizations l10n,
+    required VoidCallback onClose,
   }) {
     final isLoggedIn = authState.status == AuthStatus.authenticated;
     final primaryColor = Theme.of(context).colorScheme.primary;

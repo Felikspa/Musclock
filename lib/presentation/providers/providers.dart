@@ -18,6 +18,11 @@ import '../../data/cloud/providers/auth_state.dart' as app_auth;
 import '../../data/cloud/providers/sync_state.dart';
 import 'settings_storage.dart';
 
+// 全局 ScaffoldMessengerKey Provider，用于在任意位置显示 Snackbar
+final scaffoldMessengerKeyProvider = Provider<GlobalKey<ScaffoldMessengerState>>((ref) {
+  return GlobalKey<ScaffoldMessengerState>();
+});
+
 // Database Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
@@ -674,5 +679,357 @@ final maxTrainingPointsInRangeProvider = Provider.family<double, HeatmapTimeRang
     },
     loading: () => 100.0,
     error: (_, __) => 100.0,
+  );
+});
+
+// ============ Body Metrics Providers ============
+
+/// Watch the latest body metrics record
+final bodyMetricsProvider = StreamProvider<BodyMetric?>((ref) {
+  return ref.watch(databaseProvider).watchLatestBodyMetrics();
+});
+
+/// Provider for calculating BMI
+final bmiProvider = Provider<double?>((ref) {
+  final bodyMetricsAsync = ref.watch(bodyMetricsProvider);
+  
+  return bodyMetricsAsync.when(
+    data: (metrics) {
+      if (metrics == null || metrics.weight == null || metrics.height == null) {
+        return null;
+      }
+      // BMI = weight(kg) / height(m)^2
+      final heightInMeters = metrics.height! / 100;
+      return metrics.weight! / (heightInMeters * heightInMeters);
+    },
+    loading: () => null,
+    error: (_, __) => null,
+  );
+});
+
+/// Provider for relative strength (1RM / body weight)
+final relativeStrengthProvider = Provider.family<double?, double>((ref, oneRepMax) {
+  final bodyMetricsAsync = ref.watch(bodyMetricsProvider);
+  
+  if (oneRepMax <= 0) return null;
+  
+  return bodyMetricsAsync.when(
+    data: (metrics) {
+      if (metrics == null || metrics.weight == null || metrics.weight! <= 0) {
+        return null;
+      }
+      return oneRepMax / metrics.weight!;
+    },
+    loading: () => null,
+    error: (_, __) => null,
+  );
+});
+
+// ============ Training Statistics Providers ============
+
+/// Calculate estimated 1RM using Epley formula: weight × (1 + reps/30)
+double calculateE1RM(double weight, int reps) {
+  if (reps <= 0 || weight <= 0) return 0;
+  if (reps == 1) return weight;
+  return weight * (1 + reps / 30);
+}
+
+/// Provider for calculating e1RM for a specific exercise
+final exerciseE1RMProvider = FutureProvider.family<double?, String>((ref, exerciseId) async {
+  final db = ref.watch(databaseProvider);
+  
+  // Get all exercise records for this exercise
+  final allRecords = await db.select(db.exerciseRecords).get();
+  final matchingRecords = allRecords.where((r) => r.exerciseId == exerciseId).toList();
+  
+  if (matchingRecords.isEmpty) return null;
+  
+  double maxE1RM = 0;
+  
+  for (final record in matchingRecords) {
+    final sets = await db.getSetsByExerciseRecord(record.id);
+    for (final set in sets) {
+      final e1rm = calculateE1RM(set.weight, set.reps);
+      if (e1rm > maxE1RM) {
+        maxE1RM = e1rm;
+      }
+    }
+  }
+  
+  return maxE1RM > 0 ? maxE1RM : null;
+});
+
+/// Provider for personal records by exercise
+class PersonalRecord {
+  final String exerciseId;
+  final String exerciseName;
+  final double? maxWeight;
+  final double? maxVolume;
+  final int? maxReps;
+  final double? maxE1RM;
+  
+  PersonalRecord({
+    required this.exerciseId,
+    required this.exerciseName,
+    this.maxWeight,
+    this.maxVolume,
+    this.maxReps,
+    this.maxE1RM,
+  });
+}
+
+final personalRecordsProvider = FutureProvider<List<PersonalRecord>>((ref) async {
+  final db = ref.watch(databaseProvider);
+  final exercises = await db.getAllExercises();
+  final List<PersonalRecord> records = [];
+  
+  for (final exercise in exercises) {
+    // Get all records for this exercise
+    final allRecords = await db.select(db.exerciseRecords).get();
+    final matchingRecords = allRecords.where((r) => r.exerciseId == exercise.id).toList();
+    
+    if (matchingRecords.isEmpty) continue;
+    
+    double maxWeight = 0;
+    double maxVolume = 0;
+    int maxReps = 0;
+    double maxE1RM = 0;
+    
+    for (final record in matchingRecords) {
+      final sets = await db.getSetsByExerciseRecord(record.id);
+      for (final set in sets) {
+        // Max weight
+        if (set.weight > maxWeight) {
+          maxWeight = set.weight;
+        }
+        // Max reps
+        if (set.reps > maxReps) {
+          maxReps = set.reps;
+        }
+        // Max volume (single set)
+        final volume = set.weight * set.reps;
+        if (volume > maxVolume) {
+          maxVolume = volume;
+        }
+        // Max e1RM
+        final e1rm = calculateE1RM(set.weight, set.reps);
+        if (e1rm > maxE1RM) {
+          maxE1RM = e1rm;
+        }
+      }
+    }
+    
+    if (maxWeight > 0) {
+      records.add(PersonalRecord(
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        maxWeight: maxWeight,
+        maxVolume: maxVolume,
+        maxReps: maxReps,
+        maxE1RM: maxE1RM,
+      ));
+    }
+  }
+  
+  // Sort by maxE1RM descending
+  records.sort((a, b) => (b.maxE1RM ?? 0).compareTo(a.maxE1RM ?? 0));
+  
+  return records;
+});
+
+/// Provider for muscle group volume distribution (weekly)
+final muscleVolumeDistributionProvider = FutureProvider<Map<String, double>>((ref) async {
+  final db = ref.watch(databaseProvider);
+  final sessionsAsync = ref.watch(sessionsProvider);
+  final bodyParts = await db.getAllBodyParts();
+  
+  return sessionsAsync.when(
+    data: (sessions) async {
+      // Get sessions from last 7 days
+      final now = DateTime.now();
+      final weekAgo = now.subtract(const Duration(days: 7));
+      
+      final Map<String, double> volumeByMuscle = {};
+      
+      for (final bodyPart in bodyParts) {
+        volumeByMuscle[bodyPart.name] = 0;
+      }
+      
+      // Get exercises mapped to body parts
+      final exercises = await db.getAllExercises();
+      final Map<String, List<String>> exerciseToBodyParts = {};
+      
+      for (final exercise in exercises) {
+        final bpIds = db.parseBodyPartIds(exercise.bodyPartIds);
+        exerciseToBodyParts[exercise.id] = bpIds;
+      }
+      
+      for (final session in sessions) {
+        if (session.startTime.isBefore(weekAgo)) continue;
+        
+        final records = await db.getRecordsBySession(session.id);
+        
+        for (final record in records) {
+          if (record.exerciseId == null) continue;
+          
+          // Get body parts for this exercise
+          final bodyPartIds = exerciseToBodyParts[record.exerciseId!] ?? [];
+          
+          // Get sets and calculate volume
+          final sets = await db.getSetsByExerciseRecord(record.id);
+          
+          for (final set in sets) {
+            final setVolume = set.weight * set.reps;
+            final volumePerMuscle = setVolume / (bodyPartIds.isEmpty ? 1 : bodyPartIds.length);
+            
+            for (final bpId in bodyPartIds) {
+              final bodyPart = bodyParts.where((bp) => bp.id == bpId).firstOrNull;
+              if (bodyPart != null) {
+                volumeByMuscle[bodyPart.name] = (volumeByMuscle[bodyPart.name] ?? 0) + volumePerMuscle;
+              }
+            }
+          }
+        }
+      }
+      
+      return volumeByMuscle;
+    },
+    loading: () => {},
+    error: (_, __) => {},
+  );
+});
+
+/// Provider for weekly volume data
+class WeeklyVolume {
+  final int weekNumber;
+  final double volume;
+  
+  WeeklyVolume({required this.weekNumber, required this.volume});
+}
+
+final weeklyVolumeProvider = FutureProvider<List<WeeklyVolume>>((ref) async {
+  final db = ref.watch(databaseProvider);
+  final sessionsAsync = ref.watch(sessionsProvider);
+  
+  return sessionsAsync.when(
+    data: (sessions) async {
+      // Get last 4 weeks of data
+      final now = DateTime.now();
+      final Map<int, double> weeklyVolumes = {};
+      
+      for (int i = 0; i < 4; i++) {
+        weeklyVolumes[i] = 0;
+      }
+      
+      for (final session in sessions) {
+        final daysAgo = now.difference(session.startTime).inDays;
+        if (daysAgo >= 28) continue;
+        
+        final weekIndex = daysAgo ~/ 7;
+        final volume = await db.getSessionVolume(session.id);
+        weeklyVolumes[weekIndex] = (weeklyVolumes[weekIndex] ?? 0) + volume;
+      }
+      
+      // Convert to list
+      final List<WeeklyVolume> result = [];
+      for (int i = 0; i < 4; i++) {
+        result.add(WeeklyVolume(
+          weekNumber: 4 - i,
+          volume: weeklyVolumes[i] ?? 0,
+        ));
+      }
+      
+      return result.reversed.toList();
+    },
+    loading: () => [],
+    error: (_, __) => [],
+  );
+});
+
+/// Provider for total tonnage
+final totalTonnageProvider = FutureProvider<double>((ref) async {
+  final db = ref.watch(databaseProvider);
+  final sessionsAsync = ref.watch(sessionsProvider);
+  
+  return sessionsAsync.when(
+    data: (sessions) async {
+      double total = 0;
+      for (final session in sessions) {
+        total += await db.getSessionVolume(session.id);
+      }
+      return total;
+    },
+    loading: () => 0,
+    error: (_, __) => 0,
+  );
+});
+
+/// Provider for exercise preference (distribution)
+class ExercisePreference {
+  final String exerciseId;
+  final String exerciseName;
+  final int sessionCount;
+  final double totalVolume;
+  
+  ExercisePreference({
+    required this.exerciseId,
+    required this.exerciseName,
+    required this.sessionCount,
+    required this.totalVolume,
+  });
+}
+
+final exercisePreferenceProvider = FutureProvider<List<ExercisePreference>>((ref) async {
+  final db = ref.watch(databaseProvider);
+  final exercises = await db.getAllExercises();
+  final sessionsAsync = ref.watch(sessionsProvider);
+  
+  return sessionsAsync.when(
+    data: (sessions) async {
+      final Map<String, ExercisePreference> preferences = {};
+      
+      for (final exercise in exercises) {
+        preferences[exercise.id] = ExercisePreference(
+          exerciseId: exercise.id,
+          exerciseName: exercise.name,
+          sessionCount: 0,
+          totalVolume: 0,
+        );
+      }
+      
+      for (final session in sessions) {
+        final records = await db.getRecordsBySession(session.id);
+        
+        for (final record in records) {
+          if (record.exerciseId == null) continue;
+          if (!preferences.containsKey(record.exerciseId)) continue;
+          
+          final sets = await db.getSetsByExerciseRecord(record.id);
+          double sessionVolume = 0;
+          
+          for (final set in sets) {
+            sessionVolume += set.weight * set.reps;
+          }
+          
+          final pref = preferences[record.exerciseId]!;
+          preferences[record.exerciseId!] = ExercisePreference(
+            exerciseId: pref.exerciseId,
+            exerciseName: pref.exerciseName,
+            sessionCount: pref.sessionCount + 1,
+            totalVolume: pref.totalVolume + sessionVolume,
+          );
+        }
+      }
+      
+      // Convert to list and sort by session count
+      final result = preferences.values
+          .where((p) => p.sessionCount > 0)
+          .toList()
+        ..sort((a, b) => b.sessionCount.compareTo(a.sessionCount));
+      
+      return result;
+    },
+    loading: () => [],
+    error: (_, __) => [],
   );
 });

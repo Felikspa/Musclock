@@ -524,4 +524,88 @@ class AppLocalizationsZh extends AppLocalizations {
   String deleteBodyPartConfirm(String bodyPartName) {
     return '确定要删除「$bodyPartName」吗？';
   }
+
+  @override
+  String get detail => '详情';
+
+  @override
+  String get bodyMetrics => '身体数据';
+
+  @override
+  String get height => '身高';
+
+  @override
+  String get gender => '性别';
+
+  @override
+  String get male => '男';
+
+  @override
+  String get female => '女';
+
+  @override
+  String get bmi => 'BMI';
+
+  @override
+  String get relativeStrength => '相对力量';
+
+  @override
+  String get estimated1RM => '预估1RM';
+
+  @override
+  String get personalRecords => '个人纪录';
+
+  @override
+  String get weightPR => '重量PR';
+
+  @override
+  String get volumePR => '容量PR';
+
+  @override
+  String get repsPR => '次数PR';
+
+  @override
+  String get volumeStats => '容量统计';
+
+  @override
+  String get strengthPerformance => '力量表现';
+
+  @override
+  String get exerciseAnalysis => '动作分析';
+
+  @override
+  String get totalTonnage => '总训练量';
+
+  @override
+  String get weeklyVolume => '周容量';
+
+  @override
+  String get muscleDistribution => '肌群分布';
+
+  @override
+  String get e1RMGrowth => '1RM增长';
+
+  @override
+  String get exercisePreference => '动作偏好';
+
+  @override
+  String get bodyMetricsSaved => '身体数据保存成功';
+
+  @override
+  String get enterHeight => '请输入身高';
+
+  @override
+  String get enterWeight => '请输入体重';
+
+  @override
+  String get selectGender => '请选择性别';
+
+  @override
+  String get kg => '公斤';
+
+  @override
+  String get cm => '厘米';
+
+  @override
+  String get perKg => '/公斤';
 }
