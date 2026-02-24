@@ -37,7 +37,7 @@ class _AnalysisPageState extends ConsumerState<AnalysisPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Scaffold(
         appBar: MusclockAppBar(
           title: l10n.analysis,
@@ -84,7 +84,6 @@ class _AnalysisPageState extends ConsumerState<AnalysisPage> {
                 tabs: [
                   Tab(text: l10n.statistics),
                   Tab(text: l10n.heatmap),
-                  Tab(text: l10n.detail),
                 ],
               ),
             ),
@@ -93,7 +92,6 @@ class _AnalysisPageState extends ConsumerState<AnalysisPage> {
                 children: [
                   _StatisticsTab(l10n: l10n, isEditing: _isEditing),
                   _HeatmapTab(l10n: l10n),
-                  const TrainingAnalysisDetailPage(),
                 ],
               ),
             ),
@@ -118,8 +116,19 @@ class _StatisticsTab extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Global Stats
-        _GlobalStatsCard(sessionsAsync: sessionsAsync, l10n: l10n),
+        // Global Stats - Tap to enter detail page
+        _GlobalStatsCard(
+          sessionsAsync: sessionsAsync,
+          l10n: l10n,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const TrainingAnalysisDetailPage(),
+              ),
+            );
+          },
+        ),
         const SizedBox(height: 16),
         // Body Parts Stats
         bodyPartsAsync.when(
@@ -167,29 +176,42 @@ class _StatisticsTab extends ConsumerWidget {
 class _GlobalStatsCard extends StatelessWidget {
   final AsyncValue<List<WorkoutSession>> sessionsAsync;
   final AppLocalizations l10n;
+  final VoidCallback? onTap;
 
-  const _GlobalStatsCard({required this.sessionsAsync, required this.l10n});
+  const _GlobalStatsCard({
+    required this.sessionsAsync,
+    required this.l10n,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.analytics),
-                const SizedBox(width: 8),
-                Text(
-                  l10n.statistics,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-            const Divider(),
-            sessionsAsync.when(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.analytics),
+                  const SizedBox(width: 8),
+                  Text(
+                    l10n.statistics,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.chevron_right,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+              const Divider(),
+              sessionsAsync.when(
               data: (sessions) {
                 if (sessions.isEmpty) {
                   return Center(child: Text(l10n.noData));
@@ -225,6 +247,7 @@ class _GlobalStatsCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

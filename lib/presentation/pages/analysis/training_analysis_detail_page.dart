@@ -24,7 +24,7 @@ class _TrainingAnalysisDetailPageState extends ConsumerState<TrainingAnalysisDet
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -48,31 +48,23 @@ class _TrainingAnalysisDetailPageState extends ConsumerState<TrainingAnalysisDet
           unselectedLabelColor: isDark ? Colors.white54 : Colors.black54,
           indicatorColor: MusclockBrandColors.primary,
           tabs: [
+            Tab(text: l10n.bodyMetrics),
             Tab(text: l10n.volumeStats),
             Tab(text: l10n.strengthPerformance),
             Tab(text: l10n.exerciseAnalysis),
           ],
         ),
       ),
-      body: Column(
-        children: [
-          // Body Metrics Card
-          const Padding(
+      body: TabBarView(
+        controller: _tabController,
+        children: const [
+          Padding(
             padding: EdgeInsets.all(16),
             child: BodyMetricsCard(),
           ),
-          
-          // Tab Content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: const [
-                VolumeStatsTab(),
-                StrengthPerformanceTab(),
-                ExerciseAnalysisTab(),
-              ],
-            ),
-          ),
+          VolumeStatsTab(),
+          StrengthPerformanceTab(),
+          ExerciseAnalysisTab(),
         ],
       ),
     );
