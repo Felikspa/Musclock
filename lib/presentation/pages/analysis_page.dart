@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../data/database/database.dart';
 import '../../core/theme/appflowy_theme.dart';
+import '../../core/utils/date_time_utils.dart';
 import '../providers/providers.dart';
 import '../widgets/musclock_app_bar.dart';
 import '../widgets/muscle_group_helper.dart';
@@ -80,13 +81,8 @@ class _StatisticsTab extends ConsumerWidget {
       children: [
         // Global Stats
         _GlobalStatsCard(sessionsAsync: sessionsAsync, l10n: l10n),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         // Body Parts Stats
-        Text(
-          l10n.bodyPart,
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 8),
         bodyPartsAsync.when(
           data: (bodyParts) {
             if (bodyParts.isEmpty) {
@@ -102,13 +98,22 @@ class _StatisticsTab extends ConsumerWidget {
                 ),
               );
             }
-            return Column(
-              children: bodyParts.map((bp) {
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 6,
+                mainAxisSpacing: 6,
+                childAspectRatio: 1.1,
+              ),
+              itemCount: bodyParts.length,
+              itemBuilder: (context, index) {
                 return _BodyPartStatCard(
-                  bodyPart: bp,
+                  bodyPart: bodyParts[index],
                   l10n: l10n,
                 );
-              }).toList(),
+              },
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -150,7 +155,7 @@ class _GlobalStatsCard extends StatelessWidget {
                   return Center(child: Text(l10n.noData));
                 }
 
-                final now = DateTime.now().toUtc();
+                final now = DateTimeUtils.nowUtc;
                 final firstSession = sessions.last;
                 final totalDays = now.difference(firstSession.startTime).inDays + 1;
                 final avgPerWeek = totalDays > 0 ? (sessions.length / totalDays * 7).toStringAsFixed(1) : '0';
@@ -233,9 +238,8 @@ class _BodyPartStatCard extends ConsumerWidget {
     final displayBodyPartName = muscleGroup?.getLocalizedName(locale) ?? bodyPart.name;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -266,25 +270,24 @@ class _BodyPartStatCard extends ConsumerWidget {
                       );
                     }
 
-                    final now = DateTime.now().toUtc();
+                    final now = DateTimeUtils.nowUtc;
                     final lastSession = bpSessions.first;
                     final totalHours = now.difference(lastSession.startTime).inHours;
                     final restDays = totalHours ~/ 24;
                     final restHours = totalHours % 24;
-                    final restTimeText = '$restDays ${l10n.days} $restHours ${l10n.hours}';
 
                     return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: _MiniStat(
-                            icon: Icons.timer,
                             label: l10n.currentRest,
-                            value: restTimeText,
+                            value: '$restDays ${l10n.daysAbbr}',
+                            subValue: '$restHours ${l10n.hoursAbbr}',
                           ),
                         ),
                         Expanded(
                           child: _MiniStat(
-                            icon: Icons.repeat,
                             label: l10n.frequency,
                             value: '${bpSessions.length}x',
                           ),
@@ -305,37 +308,46 @@ class _BodyPartStatCard extends ConsumerWidget {
 }
 
 class _MiniStat extends StatelessWidget {
-  final IconData icon;
   final String label;
   final String value;
+  final String? subValue; // for showing hours below days
 
   const _MiniStat({
-    required this.icon,
     required this.label,
     required this.value,
+    this.subValue,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 14),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
         Text(
-          value,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          label,
+          style: Theme.of(context).textTheme.bodySmall,
         ),
+        if (subValue != null) ...[
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          Text(
+            subValue!,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+        ] else
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
       ],
     );
   }

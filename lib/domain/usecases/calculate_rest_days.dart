@@ -1,4 +1,5 @@
 import '../../data/database/database.dart';
+import '../../core/utils/date_time_utils.dart';
 
 class CalculateRestDaysUseCase {
   final AppDatabase _db;
@@ -17,7 +18,7 @@ class CalculateRestDaysUseCase {
     final lastTrained = await getLastTrainedTime(bodyPartId);
     if (lastTrained == null) return -1; // 从未训练
 
-    final now = DateTime.now().toUtc();
+    final now = DateTimeUtils.nowUtc;
     final restMinutes = now.difference(lastTrained).inMinutes;
     return (restMinutes / (24 * 60)).floor();
   }
@@ -47,7 +48,7 @@ class CalculateRestDaysUseCase {
     final lastTrained = await getLastTrainedTime(bodyPartId);
     if (lastTrained == null) return 'Never trained';
 
-    final now = DateTime.now().toUtc();
+    final now = DateTimeUtils.nowUtc;
     final restDuration = now.difference(lastTrained);
     final days = restDuration.inDays;
     final hours = restDuration.inHours % 24;

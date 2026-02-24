@@ -128,4 +128,33 @@ class SettingsStorage {
   static int getActivePresetDayIndex() {
     return prefs.getInt(_activePresetDayIndexKey) ?? 1;
   }
+
+  // ===== Preset Plan Last Executed Time (for sorting) =====
+
+  /// Prefix for preset plan executed time storage keys
+  static const String _presetExecutedPrefix = 'preset_executed_';
+
+  /// Get the last executed time for all preset plans
+  static Map<String, DateTime> getLastExecutedPresetPlans() {
+    final Map<String, DateTime> result = {};
+    final allKeys = prefs.getKeys();
+    for (final key in allKeys) {
+      if (key.startsWith(_presetExecutedPrefix)) {
+        final planName = key.substring(_presetExecutedPrefix.length);
+        final timestamp = prefs.getInt(key);
+        if (timestamp != null) {
+          result[planName] = DateTime.fromMillisecondsSinceEpoch(timestamp);
+        }
+      }
+    }
+    return result;
+  }
+
+  /// Update the last executed time for a preset plan
+  static Future<void> updatePresetPlanExecutedTime(String planName) async {
+    await prefs.setInt(
+      '$_presetExecutedPrefix$planName',
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  }
 }

@@ -326,6 +326,18 @@ abstract class AppLocalizations {
   /// **'Select Exercise'**
   String get selectExercise;
 
+  /// No description provided for @collapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get collapse;
+
+  /// No description provided for @expand.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand'**
+  String get expand;
+
   /// No description provided for @addBodyPart.
   ///
   /// In en, this message translates to:
@@ -379,6 +391,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'hours'**
   String get hours;
+
+  /// No description provided for @daysAbbr.
+  ///
+  /// In en, this message translates to:
+  /// **'d'**
+  String get daysAbbr;
+
+  /// No description provided for @hoursAbbr.
+  ///
+  /// In en, this message translates to:
+  /// **'h'**
+  String get hoursAbbr;
 
   /// No description provided for @times.
   ///
@@ -721,6 +745,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sync failed'**
   String get syncFailed;
+
+  /// No description provided for @uploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded'**
+  String get uploaded;
+
+  /// No description provided for @downloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get downloaded;
 
   /// No description provided for @loginSuccess.
   ///

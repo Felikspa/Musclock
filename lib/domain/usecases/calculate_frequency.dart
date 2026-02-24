@@ -1,4 +1,5 @@
 import '../../data/database/database.dart';
+import '../../core/utils/date_time_utils.dart';
 
 class CalculateFrequencyUseCase {
   final AppDatabase _db;
@@ -14,7 +15,7 @@ class CalculateFrequencyUseCase {
     final sessions = await _db.getSessionsByBodyPart(bodyPartId);
     if (sessions.isEmpty) return 0.0;
 
-    final now = DateTime.now().toUtc();
+    final now = DateTimeUtils.nowUtc;
     final totalDays = now.difference(firstSession.startTime).inDays;
     if (totalDays == 0) return sessions.length.toDouble();
 
@@ -35,7 +36,7 @@ class CalculateFrequencyUseCase {
     final sessions = await _db.getAllSessions();
     if (sessions.isEmpty) return 0.0;
 
-    final now = DateTime.now().toUtc();
+    final now = DateTimeUtils.nowUtc;
     final totalDays = now.difference(firstSession.startTime).inDays;
     if (totalDays == 0) return sessions.length.toDouble();
 

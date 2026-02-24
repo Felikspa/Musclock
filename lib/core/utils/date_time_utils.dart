@@ -5,6 +5,10 @@ import 'package:intl/intl.dart';
 class DateTimeUtils {
   DateTimeUtils._();
 
+  /// 获取当前 UTC 时间
+  /// 统一使用此方法获取当前时间，避免在各处重复调用 DateTime.now().toUtc()
+  static DateTime get nowUtc => DateTime.now().toUtc();
+
   /// 从数据库读取 DateTime 后转换为正确的 UTC 时间
   /// Drift 数据库读取时默认将 Unix timestamp 解释为本地时间
   /// 这个方法确保时间被正确识别为 UTC

@@ -32,7 +32,7 @@ class HeatmapBarChart extends StatelessWidget {
     
     // Generate date range from oldest to newest (left to right)
     final startDate = now.subtract(Duration(days: days - 1));
-    final dateFormat = DateFormat('d', locale);
+    final dateFormat = DateFormat('M.d', locale);
 
     return Column(
       children: [
@@ -78,38 +78,38 @@ class HeatmapBarChart extends StatelessWidget {
         
         const SizedBox(height: 4),
         
-        // Date labels
-        Row(
-          children: List.generate(days, (index) {
-            final date = startDate.add(Duration(days: index));
-            final isToday = index == days - 1;
-            final isYesterday = index == days - 2;
-            
-            // Show date label at specific positions
-            String label = '';
-            if (isToday) {
-              label = locale == 'zh' ? '今天' : 'Today';
-            } else if (isYesterday) {
-              label = locale == 'zh' ? '昨天' : 'Yesterday';
-            } else if (index == 0 || index == days - 1 || index == (days ~/ 2)) {
-              label = dateFormat.format(date);
-            }
-            
-            return Expanded(
-              child: Center(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                    color: isToday 
-                        ? (isDark ? Colors.white : Colors.black87)
-                        : Theme.of(context).textTheme.bodySmall?.color,
+        // Date labels - only show start date and Today at两端
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Start date with logo
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(width: 4),
+                  Text(
+                    dateFormat.format(startDate),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.normal,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                    ),
                   ),
+                ],
+              ),
+              // Today
+              Text(
+                locale == 'zh' ? '今天' : 'Today',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
                 ),
               ),
-            );
-          }),
+            ],
+          ),
         ),
       ],
     );

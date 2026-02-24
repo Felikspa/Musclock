@@ -10,13 +10,13 @@ import 'muscle_group_helper.dart';
 import 'exercise_helper.dart';
 import 'wheel_picker_input.dart';
 
-// ============ Exercise Card ============
+// ============ Exercise Record Card for Today Module ============
 
-class ExerciseCard extends ConsumerWidget {
+class TodayExerciseRecordCard extends ConsumerWidget {
   final ExerciseInSession exerciseInSession;
   final int exerciseIndex;
 
-  const ExerciseCard({
+  const TodayExerciseRecordCard({
     super.key,
     required this.exerciseInSession,
     required this.exerciseIndex,
@@ -124,6 +124,20 @@ class ExerciseCard extends ConsumerWidget {
 
   void _showAddSetDialog(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+
+    // Get the last set's values for inheritance
+    final sets = exerciseInSession.sets;
+    double? defaultWeight;
+    int? defaultReps;
+
+    if (sets.isNotEmpty) {
+      // Find the set with the highest orderIndex (last added set)
+      final lastSet = sets.reduce((a, b) =>
+          a.orderIndex > b.orderIndex ? a : b);
+      defaultWeight = lastSet.weight;
+      defaultReps = lastSet.reps;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -132,6 +146,8 @@ class ExerciseCard extends ConsumerWidget {
         exerciseIndex: exerciseIndex,
         existingExercise: exerciseInSession.exercise,
         existingBodyPart: exerciseInSession.bodyPart,
+        defaultWeight: defaultWeight,
+        defaultReps: defaultReps,
       ),
     );
   }
@@ -194,6 +210,10 @@ class AddSetSheet extends ConsumerStatefulWidget {
   final int exerciseIndex;
   final Exercise? existingExercise;
   final BodyPart? existingBodyPart;
+  final double? defaultWeight;
+  final int? defaultReps;
+  final bool isForEditing;
+  final void Function(double weight, int reps)? onSetAdded; // Callback for when set is added
 
   const AddSetSheet({
     super.key,
@@ -201,6 +221,10 @@ class AddSetSheet extends ConsumerStatefulWidget {
     required this.exerciseIndex,
     this.existingExercise,
     this.existingBodyPart,
+    this.defaultWeight,
+    this.defaultReps,
+    this.isForEditing = false,
+    this.onSetAdded,
   });
 
   @override
@@ -209,13 +233,17 @@ class AddSetSheet extends ConsumerStatefulWidget {
 
 class AddSetSheetState extends ConsumerState<AddSetSheet> {
   String? _selectedExerciseId;
-  double _weightValue = 20.0; // Default 20 kg
-  int _repsValue = 8; // Default 8 reps
+  late double _weightValue;
+  late int _repsValue;
 
   @override
   void initState() {
     super.initState();
     // Pre-select existing exercise and body part if available
+    // Use inherited default values if provided, otherwise use defaults
+    _weightValue = widget.defaultWeight ?? 20.0;
+    _repsValue = widget.defaultReps ?? 8;
+
     if (widget.existingExercise != null) {
       _selectedExerciseId = widget.existingExercise!.id;
     }
@@ -339,12 +367,13 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
+                    flex: 13,
                     child: WheelPickerInput(
                       type: 'weight',
                       minValue: 5,
                       maxValue: 550,
                       step: 5,
-                      defaultValue: 20,
+                      defaultValue: _weightValue,
                       fineStep: 0.5,
                       label: widget.l10n.weight,
                       onChanged: (value) {
@@ -356,12 +385,13 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
                   ),
                   const SizedBox(width: 16),
                   Expanded(
+                    flex: 10,
                     child: WheelPickerInput(
                       type: 'reps',
                       minValue: 1,
                       maxValue: 100,
                       step: 1,
-                      defaultValue: 8,
+                      defaultValue: _repsValue,
                       label: widget.l10n.reps,
                       onChanged: (value) {
                         setState(() {
@@ -398,7 +428,14 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
   void _saveSet(BuildContext context) async {
     final weight = _weightValue;
     final reps = _repsValue;
-    
+
+    // If callback is provided, use it instead of adding to workout session
+    if (widget.onSetAdded != null) {
+      widget.onSetAdded!(weight, reps);
+      Navigator.pop(context);
+      return;
+    }
+
     // Allow saving if we have an exercise selected (weight/reps can be 0)
     if (_selectedExerciseId != null || widget.existingExercise != null) {
       // Get the exercise to add
@@ -417,14 +454,14 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
       } else {
         exercise = widget.existingExercise;
       }
-      
+
       if (exercise != null && exercise.id.isNotEmpty) {
         // Check if this exercise is already in the session
         final sessionState = ref.read(workoutSessionProvider);
         final existingIndex = sessionState.exercises.indexWhere(
           (e) => e.exercise?.id == exercise!.id,
         );
-        
+
         if (existingIndex >= 0) {
           // Exercise already exists, add set to it
           ref.read(workoutSessionProvider.notifier).addSet(
@@ -448,10 +485,10 @@ class AddSetSheetState extends ConsumerState<AddSetSheet> {
             );
           }
         }
-        
+
         // Close the sheet - user will see the updated session with new exercise if added
         Navigator.pop(context);
-        
+
         // Show a snackbar to inform user about the new exercise added
         if (existingIndex < 0 && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

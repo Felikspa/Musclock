@@ -39,14 +39,32 @@ class WheelPickerInput extends StatefulWidget {
 class _WheelPickerInputState extends State<WheelPickerInput> {
   late FixedExtentScrollController _scrollController;
   late num _currentValue;
+  bool _isHalfKgMode = false; // Track if we're in fine-tune (0.5kg) mode
+  num _halfKgValue = 0; // Store the half kg offset value
 
   @override
   void initState() {
     super.initState();
     _currentValue = widget.defaultValue;
+    // Check if initial value has half kg
+    _updateHalfKgMode(_currentValue);
     // Calculate initial index
     final initialIndex = ((_currentValue - widget.minValue) / widget.step).round();
     _scrollController = FixedExtentScrollController(initialItem: initialIndex);
+  }
+
+  /// Update half kg mode based on current value
+  void _updateHalfKgMode(num value) {
+    final baseValue = (value / widget.step).round() * widget.step;
+    final remainder = (value - baseValue).abs();
+    // If remainder is close to half step (0.5 for weight), we're in half kg mode
+    if (widget.fineStep != null && remainder >= widget.fineStep! / 2) {
+      _isHalfKgMode = true;
+      _halfKgValue = value;
+    } else {
+      _isHalfKgMode = false;
+      _halfKgValue = 0;
+    }
   }
 
   @override
@@ -79,12 +97,16 @@ class _WheelPickerInputState extends State<WheelPickerInput> {
 
     setState(() {
       _currentValue = newValue;
+      _isHalfKgMode = true; // Enter half kg mode when using fine-tune
+      _halfKgValue = newValue;
     });
 
     // Sync scroll controller position with fine-tune
-    final newIndex = ((_currentValue - widget.minValue) / widget.step).round();
+    final newIndex = ((newValue - widget.minValue) / widget.step).round();
+    // Clamp index to valid range
+    final clampedIndex = newIndex.clamp(0, _values.length - 1);
     _scrollController.animateToItem(
-      newIndex,
+      clampedIndex,
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
@@ -126,7 +148,7 @@ class _WheelPickerInputState extends State<WheelPickerInput> {
         
         // Wheel picker with fine-tune buttons
         Container(
-          height: 120,
+          height: 140,
           decoration: BoxDecoration(
             color: isDark 
               ? AppTheme.cardDark.withOpacity(0.5)
@@ -173,6 +195,9 @@ class _WheelPickerInputState extends State<WheelPickerInput> {
                         final newValue = values[index];
                         setState(() {
                           _currentValue = newValue;
+                          // Exit half kg mode when user scrolls wheel
+                          _isHalfKgMode = false;
+                          _halfKgValue = 0;
                         });
                         widget.onChanged(newValue);
                       },
@@ -181,19 +206,19 @@ class _WheelPickerInputState extends State<WheelPickerInput> {
                         builder: (context, index) {
                           final value = values[index];
                           final isSelected = value == _currentValue;
-                          
+
                           return Center(
                             child: Text(
                               _formatValue(value),
                               style: TextStyle(
                                 fontSize: isSelected ? 20 : 16,
-                                fontWeight: isSelected 
-                                  ? FontWeight.bold 
+                                fontWeight: isSelected
+                                  ? FontWeight.bold
                                   : FontWeight.normal,
                                 color: isSelected
                                   ? AppThemeConfig.accent
-                                  : (isDark 
-                                      ? AppThemeConfig.textPrimary 
+                                  : (isDark
+                                      ? AppThemeConfig.textPrimary
                                       : AppThemeConfig.textPrimaryLight),
                               ),
                             ),
@@ -201,6 +226,28 @@ class _WheelPickerInputState extends State<WheelPickerInput> {
                         },
                       ),
                     ),
+                    // Half kg mode overlay - shows the fine-tuned value
+                    if (_isHalfKgMode)
+                      Positioned.fill(
+                        child: Center(
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppThemeConfig.accent.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              _formatValue(_halfKgValue),
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -231,7 +278,7 @@ class _WheelPickerInputState extends State<WheelPickerInput> {
     final canIncrease = _currentValue < widget.maxValue;
 
     return Container(
-      width: 36,
+      width: 44,
       margin: const EdgeInsets.only(left: 8, top: 8, bottom: 8),
       decoration: BoxDecoration(
         color: AppThemeConfig.accent.withOpacity(0.1),
@@ -246,8 +293,8 @@ class _WheelPickerInputState extends State<WheelPickerInput> {
             icon: Icon(
               Icons.keyboard_arrow_up,
               size: 20,
-              color: canIncrease 
-                ? AppThemeConfig.accent 
+              color: canIncrease
+                ? AppThemeConfig.accent
                 : AppThemeConfig.accent.withOpacity(0.3),
             ),
             padding: EdgeInsets.zero,
@@ -257,11 +304,12 @@ class _WheelPickerInputState extends State<WheelPickerInput> {
             ),
             tooltip: '+${widget.fineStep}',
           ),
-          // Small step indicator
+          // Small step indicator - simplified to +/- symbol
           Text(
-            widget.fineStep.toString(),
+            '+/-',
             style: TextStyle(
-              fontSize: 9,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
               color: AppThemeConfig.accent.withOpacity(0.7),
             ),
           ),
@@ -271,8 +319,8 @@ class _WheelPickerInputState extends State<WheelPickerInput> {
             icon: Icon(
               Icons.keyboard_arrow_down,
               size: 20,
-              color: canDecrease 
-                ? AppThemeConfig.accent 
+              color: canDecrease
+                ? AppThemeConfig.accent
                 : AppThemeConfig.accent.withOpacity(0.3),
             ),
             padding: EdgeInsets.zero,

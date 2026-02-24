@@ -5,7 +5,7 @@ import '../../core/theme/appflowy_theme.dart';
 import '../../core/utils/date_time_utils.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
-import '../widgets/calendar/day_detail_card.dart';
+import '../widgets/calendar/day_workout_detail_card.dart';
 import '../widgets/calendar/heatmap_color.dart';
 import '../widgets/musclock_app_bar.dart';
 
@@ -196,7 +196,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                           localStartTime.day == _selectedDay!.day;
                     }).toList();
 
-                    return DayDetailCard(
+                    return DayWorkoutDetailCard(
                       date: _selectedDay!,
                       sessions: daySessions,
                       isDark: isDark,

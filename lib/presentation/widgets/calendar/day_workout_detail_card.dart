@@ -7,16 +7,16 @@ import '../../../data/database/database.dart';
 import '../../providers/providers.dart';
 import '../../providers/workout_session_provider.dart';
 import '../../widgets/muscle_group_helper.dart';
-import '../../widgets/add_exercise_sheet.dart';
+import '../../widgets/add_exercise_bottom_sheet.dart';
 import '../../widgets/select_datetime_sheet.dart';
-import 'exercise_records_list.dart';
+import 'exercise_record_list.dart';
 
-class DayDetailCard extends ConsumerWidget {
+class DayWorkoutDetailCard extends ConsumerWidget {
   final DateTime date;
   final List<WorkoutSession> sessions;
   final bool isDark;
 
-  const DayDetailCard({
+  const DayWorkoutDetailCard({
     super.key,
     required this.date,
     required this.sessions,
@@ -113,7 +113,7 @@ class DayDetailCard extends ConsumerWidget {
           const SizedBox(height: 16),
           if (sessions.isNotEmpty)
             Expanded(
-              child: ExerciseRecordsList(
+              child: ExerciseRecordList(
                 sessions: sessions,
                 isDark: isDark,
                 l10n: l10n,
@@ -173,12 +173,15 @@ class DayDetailCard extends ConsumerWidget {
     final sessionIds = sessions.map((s) => s.id).toList();
     final recordsBySession = await repo.getMultipleSessionsExerciseRecordsWithDetails(sessionIds);
     
-    // Collect unique body part names
+    // Collect unique body part names from all body parts
     for (final sessionId in sessionIds) {
       final records = recordsBySession[sessionId] ?? [];
       for (final record in records) {
-        if (!muscleNames.contains(record.bodyPart.name)) {
-          muscleNames.add(record.bodyPart.name);
+        // Iterate through all body parts associated with this exercise
+        for (final bp in record.bodyParts) {
+          if (!muscleNames.contains(bp.name)) {
+            muscleNames.add(bp.name);
+          }
         }
       }
     }
@@ -225,7 +228,7 @@ class DayDetailCard extends ConsumerWidget {
         minChildSize: 0.5,
         maxChildSize: 0.9,
         expand: false,
-        builder: (context, scrollController) => AddExerciseSheet(
+        builder: (context, scrollController) => AddExerciseBottomSheet(
           scrollController: scrollController,
           l10n: l10n,
         ),

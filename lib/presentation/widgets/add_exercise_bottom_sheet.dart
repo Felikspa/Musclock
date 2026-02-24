@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show Value;
 import 'dart:convert';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/body_part_utils.dart';
 import '../../data/database/database.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
@@ -11,12 +12,12 @@ import '../providers/workout_session_provider.dart';
 import 'muscle_group_helper.dart';
 import 'exercise_helper.dart';
 
-class AddExerciseSheet extends ConsumerStatefulWidget {
+class AddExerciseBottomSheet extends ConsumerStatefulWidget {
   final ScrollController scrollController;
   final AppLocalizations l10n;
   final bool autoCloseOnAdd;
 
-  const AddExerciseSheet({
+  const AddExerciseBottomSheet({
     super.key,
     required this.scrollController,
     required this.l10n,
@@ -24,10 +25,10 @@ class AddExerciseSheet extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<AddExerciseSheet> createState() => AddExerciseSheetState();
+  ConsumerState<AddExerciseBottomSheet> createState() => AddExerciseBottomSheetState();
 }
 
-class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
+class AddExerciseBottomSheetState extends ConsumerState<AddExerciseBottomSheet> {
   // Support multi-select for body parts
   final Set<String> _selectedBodyPartIds = {};
   // Support multi-select for exercises
@@ -112,7 +113,7 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                                   createdAt: DateTime.now(),
                                 ),
                               );
-                              final exerciseBodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+                              final exerciseBodyPartIds = BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds);
                               return exerciseBodyPartIds.contains(bp.id);
                             });
                           } else {
@@ -189,7 +190,7 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                   // Filter exercises by selected body parts (check if bodyPartIds JSON array contains any of the selected body part IDs)
                   final filtered = exercises
                       .where((e) {
-                        final ids = _parseBodyPartIds(e.bodyPartIds);
+                        final ids = BodyPartUtils.parseBodyPartIds(e.bodyPartIds);
                         return _selectedBodyPartIds.any((selectedId) => ids.contains(selectedId));
                       })
                       .toList();
@@ -225,7 +226,7 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
                       final exercise = filtered[index];
                       final displayExerciseName = ExerciseHelper.getLocalizedName(exercise.name, locale);
                       // Parse bodyPartIds for this exercise
-                      final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+                      final bodyPartIds = BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds);
                       return CheckboxListTile(
                         title: Text(displayExerciseName),
                         subtitle: _buildBodyPartChips(bodyPartIds, locale),
@@ -282,8 +283,8 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
     
     if (bodyParts == null) return;
 
-    // 首先创建/合并session（如果1小时内没有session则创建新的，否则复用最近的）
-    await ref.read(workoutSessionProvider.notifier).startSessionAndAddExercise();
+    // 首先创建/复用session - 优先使用当前已存在的session（保持原时间）
+    await ref.read(workoutSessionProvider.notifier).continueExistingSession();
     
     int addedCount = 0;
 
@@ -438,32 +439,6 @@ class AddExerciseSheetState extends ConsumerState<AddExerciseSheet> {
         ],
       ),
     );
-  }
-
-  /// Parse bodyPartIds JSON array string to List<String>
-  /// Handles various formats: JSON array, comma-separated, single value, etc.
-  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
-    // Handle NULL or empty values
-    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
-    try {
-      // First try JSON array format: ["body_back", "body_glutes"]
-      final decoded = jsonDecode(bodyPartIdsJson);
-      if (decoded is List) {
-        return decoded.map((e) => e.toString()).toList();
-      }
-      // If it's a string but not a JSON array, try comma-separated format
-      if (decoded is String) {
-        return _parseBodyPartIds(decoded);
-      }
-      return [];
-    } catch (e) {
-      // If JSON parsing fails, try comma-separated format: "body_back,body_glutes"
-      if (bodyPartIdsJson.contains(',')) {
-        return bodyPartIdsJson.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-      }
-      // Try single value: "body_back"
-      return [bodyPartIdsJson.trim()];
-    }
   }
 
   /// Build colored boxes for body parts associated with an exercise

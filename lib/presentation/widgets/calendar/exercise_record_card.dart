@@ -8,12 +8,14 @@ import '../muscle_group_helper.dart';
 import '../exercise_helper.dart';
 import '../training_details_dialog.dart';
 
-class ExerciseRecordCard extends StatelessWidget {
+// ============ Exercise Record Card for Calendar Module ============
+
+class CalendarExerciseRecordCard extends StatelessWidget {
   final ExerciseRecordWithSession exerciseRecord;
   final bool isDark;
   final AppLocalizations l10n;
 
-  const ExerciseRecordCard({
+  const CalendarExerciseRecordCard({
     super.key,
     required this.exerciseRecord,
     required this.isDark,
@@ -74,7 +76,7 @@ class ExerciseRecordCard extends StatelessWidget {
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: color.withOpacity(0.2),
+                          color: color.withOpacity(0.4),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(

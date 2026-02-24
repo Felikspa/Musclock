@@ -6,13 +6,13 @@ import '../../../data/database/database.dart';
 import '../../providers/providers.dart';
 import '../muscle_group_helper.dart';
 
-class CustomPlanDayItem extends ConsumerWidget {
+class PlanDayItem extends ConsumerWidget {
   final PlanItem planItem;
   final bool isDark;
   final AppLocalizations l10n;
   final bool isHighlighted;
 
-  const CustomPlanDayItem({
+  const PlanDayItem({
     super.key,
     required this.planItem,
     required this.isDark,
@@ -25,6 +25,12 @@ class CustomPlanDayItem extends ConsumerWidget {
     final bodyPartIds = planItem.bodyPartIds.split(',').where((s) => s.isNotEmpty).toList();
     final bodyPartsAsync = ref.watch(bodyPartsProvider);
     final locale = Localizations.localeOf(context).languageCode;
+    
+    // Get today's trained body parts for completion status (only for highlighted day)
+    // Use ID-based provider for custom plans
+    final todayPartsAsync = isHighlighted ? ref.watch(todayTrainedBodyPartsProvider) : null;
+    // Also get muscle groups provider as fallback for name-based matching
+    final todayMusclesAsync = isHighlighted ? ref.watch(todayTrainedMuscleGroupsProvider) : null;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -59,11 +65,45 @@ class CustomPlanDayItem extends ConsumerWidget {
                     .where((bp) => bodyPartIds.contains(bp.id))
                     .map((bp) {
                       final muscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
+                      
+                      // Check completion status for highlighted day
+                      bool isCompleted = false;
+                      if (todayPartsAsync != null) {
+                        isCompleted = todayPartsAsync.when(
+                          data: (todayParts) {
+                            // First try ID matching
+                            if (todayParts.contains(bp.id)) {
+                              return true;
+                            }
+                            // Fallback: try name-based matching using muscle groups provider
+                            if (todayMusclesAsync != null) {
+                              return todayMusclesAsync.when(
+                                data: (todayMuscles) {
+                                  final bpNameLower = bp.name.toLowerCase();
+                                  for (final trained in todayMuscles) {
+                                    if (trained.contains(bpNameLower) || bpNameLower.contains(trained)) {
+                                      return true;
+                                    }
+                                  }
+                                  return false;
+                                },
+                                loading: () => false,
+                                error: (_, __) => false,
+                              );
+                            }
+                            return false;
+                          },
+                          loading: () => false,
+                          error: (_, __) => false,
+                        );
+                      }
+                      
                       return {
                         'name': muscleGroup != null ? muscleGroup.getLocalizedName(locale) : bp.name,
                         'color': muscleGroup != null 
                             ? AppTheme.getMuscleColor(muscleGroup) 
                             : MuscleGroupHelper.getColorForBodyPart(bp.name),
+                        'isCompleted': isCompleted,
                       };
                     })
                     .toList();
@@ -81,19 +121,32 @@ class CustomPlanDayItem extends ConsumerWidget {
                 return Wrap(
                   spacing: 8,
                   children: displayItems.map((item) {
+                    final isCompleted = item['isCompleted'] as bool;
+                    final originalColor = item['color'] as Color;
+                    final displayColor = (isHighlighted && !isCompleted) ? Colors.grey : originalColor;
+                    
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: (item['color'] as Color).withOpacity(0.2),
+                        color: displayColor.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Text(
-                        item['name'] as String,
-                        style: TextStyle(
-                          color: item['color'] as Color,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isCompleted) ...[
+                            Icon(Icons.check, size: 14, color: displayColor),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            item['name'] as String,
+                            style: TextStyle(
+                              color: displayColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   }).toList(),

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:drift/drift.dart' show Value;
-import 'dart:convert';
+import 'package:uuid/uuid.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/body_part_utils.dart';
 import 'muscle_group_helper.dart';
 import 'exercise_helper.dart';
 import 'training_set_data.dart';
@@ -29,6 +29,7 @@ class TrainingDetailsDialog extends ConsumerStatefulWidget {
 
 class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
   bool _isEditing = false;
+  bool _isBodyPartExpanded = false; // 控制部位选择器折叠状态
   late List<TrainingSetData> _sets;
   late TextEditingController _exerciseNameController;
   String? _selectedBodyPartId;
@@ -48,7 +49,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     );
     // Get primary body part ID from bodyPartIds array
     if (widget.exerciseRecord.exercise != null) {
-      final bodyPartIds = _parseBodyPartIds(widget.exerciseRecord.exercise!.bodyPartIds);
+      final bodyPartIds = BodyPartUtils.parseBodyPartIds(widget.exerciseRecord.exercise!.bodyPartIds);
       _selectedBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
     }
   }
@@ -57,21 +58,6 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
   void dispose() {
     _exerciseNameController.dispose();
     super.dispose();
-  }
-
-  /// Parse bodyPartIds JSON array string to List<String>
-  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
-    // Handle NULL or empty values
-    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
-    try {
-      final decoded = jsonDecode(bodyPartIdsJson);
-      if (decoded is List) {
-        return decoded.map((e) => e.toString()).toList();
-      }
-      return [];
-    } catch (e) {
-      return [];
-    }
   }
 
   // ===== Helper methods for editing =====
@@ -95,41 +81,62 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     );
   }
 
-  /// Build body part selector (edit mode)
+  /// Build body part selector (edit mode) - collapsible
   Widget _buildBodyPartSelector() {
     final bodyPartsAsync = ref.watch(bodyPartsProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          widget.l10n.bodyPart,
-          style: TextStyle(
-            color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-            fontSize: 12,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              widget.l10n.bodyPart,
+              style: TextStyle(
+                color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                fontSize: 11,
+              ),
+            ),
+            // 展开/折叠按钮
+            InkWell(
+              onTap: () => setState(() => _isBodyPartExpanded = !_isBodyPartExpanded),
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _isBodyPartExpanded ? widget.l10n.collapse : widget.l10n.expand,
+                      style: TextStyle(
+                        color: AppTheme.accent,
+                        fontSize: 10,
+                      ),
+                    ),
+                    Icon(
+                      _isBodyPartExpanded ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                      color: AppTheme.accent,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         bodyPartsAsync.when(
           data: (bodyParts) {
             final locale = Localizations.localeOf(context).languageCode;
-            return Wrap(
-              spacing: 6, runSpacing: 4,
-              children: bodyParts.map((bp) {
-                final bpMuscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
-                final bpColor = bpMuscleGroup != null 
-                    ? AppTheme.getMuscleColor(bpMuscleGroup) 
-                    : MuscleGroupHelper.getColorForBodyPart(bp.name);
-                final isSelected = _selectedBodyPartId == bp.id;
-                final displayName = bpMuscleGroup?.getLocalizedName(locale) ?? bp.name;
-                return ChoiceChip(
-                  label: Text(displayName, style: const TextStyle(fontSize: 12)),
-                  selected: isSelected,
-                  selectedColor: bpColor.withOpacity(0.3),
-                  onSelected: (selected) {
-                    setState(() => _selectedBodyPartId = selected ? bp.id : null);
-                  },
-                );
-              }).toList(),
+            
+            // 找到当前选中的部位
+            final selectedBodyPart = bodyParts.where((bp) => bp.id == _selectedBodyPartId).firstOrNull;
+            
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              child: _isBodyPartExpanded 
+                  ? _buildAllBodyPartsSelector(bodyParts, locale)
+                  : _buildSingleBodyPartDisplay(selectedBodyPart, locale),
             );
           },
           loading: () => const SizedBox(height: 32, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
@@ -139,13 +146,83 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     );
   }
 
+  /// 显示所有部位供选择（展开状态）
+  Widget _buildAllBodyPartsSelector(List<BodyPart> bodyParts, String locale) {
+    return Wrap(
+      spacing: 6, runSpacing: 4,
+      children: bodyParts.map((bp) {
+        final bpMuscleGroup = MuscleGroupHelper.getMuscleGroupByName(bp.name);
+        final bpColor = bpMuscleGroup != null 
+            ? AppTheme.getMuscleColor(bpMuscleGroup) 
+            : MuscleGroupHelper.getColorForBodyPart(bp.name);
+        final isSelected = _selectedBodyPartId == bp.id;
+        final displayName = bpMuscleGroup?.getLocalizedName(locale) ?? bp.name;
+        return ChoiceChip(
+          label: Text(displayName, style: const TextStyle(fontSize: 12)),
+          selected: isSelected,
+          selectedColor: bpColor.withOpacity(0.3),
+          onSelected: (selected) {
+            setState(() => _selectedBodyPartId = selected ? bp.id : null);
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  /// 只显示当前选中的部位（折叠状态）
+  Widget _buildSingleBodyPartDisplay(BodyPart? selectedBodyPart, String locale) {
+    if (selectedBodyPart == null) {
+      return Text(
+        widget.l10n.selectBodyPart,
+        style: TextStyle(
+          color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
+          fontSize: 14,
+        ),
+      );
+    }
+    
+    final bpMuscleGroup = MuscleGroupHelper.getMuscleGroupByName(selectedBodyPart.name);
+    final bpColor = bpMuscleGroup != null 
+        ? AppTheme.getMuscleColor(bpMuscleGroup) 
+        : MuscleGroupHelper.getColorForBodyPart(selectedBodyPart.name);
+    final displayName = bpMuscleGroup?.getLocalizedName(locale) ?? selectedBodyPart.name;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: bpColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: bpColor.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            displayName,
+            style: TextStyle(
+              color: bpColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(
+            Icons.check_circle,
+            size: 16,
+            color: bpColor,
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Build exercise selector (edit mode)
   Widget _buildExerciseSelector() {
     final exercisesAsync = ref.watch(exercisesProvider);
     final filteredExercises = exercisesAsync.maybeWhen(
       data: (exercises) => _selectedBodyPartId != null
           ? exercises.where((e) {
-              final bodyPartIds = _parseBodyPartIds(e.bodyPartIds);
+              final bodyPartIds = BodyPartUtils.parseBodyPartIds(e.bodyPartIds);
               return bodyPartIds.contains(_selectedBodyPartId);
             }).toList()
           : exercises,
@@ -156,16 +233,16 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
       onTap: () => _showExerciseDialog(filteredExercises),
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
-            Expanded(child: Text(_exerciseNameController.text,
-                style: TextStyle(color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight, fontSize: 16))),
-            Icon(Icons.arrow_drop_down, color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight),
+            Expanded(child: Text(ExerciseHelper.getLocalizedName(_exerciseNameController.text, Localizations.localeOf(context).languageCode),
+                style: TextStyle(color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight, fontSize: 14))),
+            Icon(Icons.arrow_drop_down, size: 20, color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight),
           ],
         ),
       ),
@@ -174,6 +251,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
 
   /// Show exercise selection dialog
   void _showExerciseDialog(List<Exercise> exercises) {
+    final locale = Localizations.localeOf(context).languageCode;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -182,7 +260,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
           child: exercises.isEmpty
               ? Center(child: Text(widget.l10n.noData))
               : ListView.builder(itemCount: exercises.length, itemBuilder: (context, index) =>
-                  ListTile(title: Text(exercises[index].name),
+                  ListTile(title: Text(ExerciseHelper.getLocalizedName(exercises[index].name, locale)),
                     selected: _exerciseNameController.text == exercises[index].name,
                     onTap: () { _exerciseNameController.text = exercises[index].name; Navigator.pop(ctx); setState(() {}); }))),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(widget.l10n.cancel))],
@@ -193,7 +271,6 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     final exercise = widget.exerciseRecord;
-    final bodyPartName = exercise.bodyPart?.name ?? '';
     final timeFormat = DateFormat('HH:mm');
     final dateFormat = DateFormat('yyyy-MM-dd');
     final locale = Localizations.localeOf(context).languageCode;
@@ -224,8 +301,8 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
       backgroundColor: widget.isDark ? AppTheme.cardDark : AppTheme.cardLight,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
-        padding: const EdgeInsets.all(20),
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,7 +315,7 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                   widget.l10n.workoutDetails,
                   style: TextStyle(
                     color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -247,18 +324,21 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                   icon: Icon(
                     Icons.close,
                     color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+                    size: 20,
                   ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
 
             // Date and time
             Row(
               children: [
                 Icon(
                   Icons.calendar_today,
-                  size: 14,
+                  size: 12,
                   color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
                 ),
                 const SizedBox(width: 4),
@@ -266,13 +346,13 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                   dateFormat.format(exercise.session.startTime),
                   style: TextStyle(
                     color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                    fontSize: 12,
+                    fontSize: 11,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Icon(
                   Icons.access_time,
-                  size: 14,
+                  size: 12,
                   color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight,
                 ),
                 const SizedBox(width: 4),
@@ -280,12 +360,12 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                   timeFormat.format(exercise.session.startTime),
                   style: TextStyle(
                     color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                    fontSize: 12,
+                    fontSize: 11,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
 
             // Body part
             Expanded(
@@ -298,52 +378,56 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                         ? _buildBodyPartSelector() 
                         : (bodyPartWidgets.isNotEmpty 
                             ? Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
+                                spacing: 4,
+                                runSpacing: 4,
                                 children: bodyPartWidgets,
                               )
                             : const SizedBox.shrink()),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
 
                     // Exercise
-                    Text(widget.l10n.exercise, style: TextStyle(color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight, fontSize: 12)),
-                    const SizedBox(height: 4),
+                    Text(widget.l10n.exercise, style: TextStyle(color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight, fontSize: 11)),
+                    const SizedBox(height: 2),
                     _isEditing ? _buildExerciseSelector() : (displayExerciseName != null 
                         ? Text(displayExerciseName,
-                            style: TextStyle(color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight, fontSize: 16, fontWeight: FontWeight.w500))
+                            style: TextStyle(color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight, fontSize: 14, fontWeight: FontWeight.w500))
                         : const SizedBox.shrink()),
-                    const SizedBox(height: 16),
+                    SizedBox(height: _isEditing ? 0 : 6),
 
                     // Sets
                     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text(widget.l10n.sets, style: TextStyle(color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight, fontSize: 12)),
-                      if (_isEditing) IconButton(onPressed: _addSet, icon: Icon(Icons.add_circle, color: AppTheme.accent, size: 20), padding: EdgeInsets.zero, constraints: const BoxConstraints())
+                      Text(widget.l10n.sets, style: TextStyle(color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight, fontSize: 11)),
+                      if (_isEditing) IconButton(onPressed: _addSet, icon: Icon(Icons.add_circle, color: AppTheme.accent, size: 18), padding: EdgeInsets.zero, constraints: const BoxConstraints())
                     ]),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     _sets.isEmpty
-                        ? Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Center(child: Text(widget.l10n.noData, style: TextStyle(color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight, fontSize: 14))))
+                        ? Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Center(child: Text(widget.l10n.noData, style: TextStyle(color: widget.isDark ? AppTheme.textTertiary : AppTheme.textTertiaryLight, fontSize: 12))))
                         : ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: _sets.length, itemBuilder: (context, index) => _buildSetItem(_sets[index], index)),
                   ],
                 ),
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
 
             // Action buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (_isEditing) ...[
-                  // Delete button in edit mode
-                  TextButton(
+                if (!_isEditing) ...[
+                  // Delete button in non-edit mode - same style as edit button
+                  OutlinedButton.icon(
                     onPressed: _showDeleteConfirmDialog,
-                    child: Text(
-                      widget.l10n.delete,
-                      style: const TextStyle(color: Colors.red),
+                    icon: const Icon(Icons.delete_outline, size: 14, color: Colors.red),
+                    label: Text(widget.l10n.delete, style: const TextStyle(fontSize: 12, color: Colors.red)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      side: const BorderSide(color: Colors.red),
                     ),
                   ),
                   const Spacer(),
+                ],
+                if (_isEditing) ...[
                   TextButton(
                     onPressed: () {
                       setState(() {
@@ -358,21 +442,22 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                         _exerciseNameController.text = widget.exerciseRecord.exercise?.name ?? '';
                         // Get primary body part ID from bodyPartIds array
                         if (widget.exerciseRecord.exercise != null) {
-                          final bodyPartIds = _parseBodyPartIds(widget.exerciseRecord.exercise!.bodyPartIds);
+                          final bodyPartIds = BodyPartUtils.parseBodyPartIds(widget.exerciseRecord.exercise!.bodyPartIds);
                           _selectedBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
                         }
                       });
                     },
-                    child: Text(widget.l10n.cancel),
+                    child: Text(widget.l10n.cancel, style: const TextStyle(fontSize: 12)),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   FilledButton(
                     onPressed: _saveChanges,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.accent,
                       foregroundColor: AppTheme.primaryDark,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                     ),
-                    child: Text(widget.l10n.save),
+                    child: Text(widget.l10n.save, style: const TextStyle(fontSize: 12)),
                   ),
                 ] else ...[
                   OutlinedButton.icon(
@@ -381,8 +466,11 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
                         _isEditing = true;
                       });
                     },
-                    icon: const Icon(Icons.edit, size: 16),
-                    label: Text(widget.l10n.edit),
+                    icon: const Icon(Icons.edit, size: 14),
+                    label: Text(widget.l10n.edit, style: const TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    ),
                   ),
                 ],
               ],
@@ -393,107 +481,213 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
     );
   }
 
+  /// 微型滚轮选择器 - 用于编辑视图中的重量和次数选择
+  Widget _buildMiniWheelPicker({
+    required double value,
+    required double minValue,
+    required double maxValue,
+    required double step,
+    required bool isWeight,
+    required ValueChanged<double> onChanged,
+  }) {
+    // 生成滚轮选项列表
+    final List<double> values = [];
+    for (double v = minValue; v <= maxValue; v += step) {
+      values.add(v);
+    }
+    
+    // 计算初始索引
+    int initialIndex = ((value - minValue) / step).round().clamp(0, values.length - 1);
+    
+    return Container(
+      height: 45,
+      decoration: BoxDecoration(
+        color: widget.isDark ? AppTheme.cardDark.withOpacity(0.5) : AppTheme.cardLight.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: widget.isDark 
+              ? AppTheme.secondaryDark.withOpacity(0.3) 
+              : AppTheme.secondaryLight.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          // 微调按钮
+          SizedBox(
+            width: 24,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                InkWell(
+                  onTap: () {
+                    final currentIndex = values.indexOf(value);
+                    if (currentIndex > 0) {
+                      onChanged(values[currentIndex - 1]);
+                    }
+                  },
+                  child: Icon(
+                    Icons.keyboard_arrow_up,
+                    size: 16,
+                    color: AppTheme.accent,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                InkWell(
+                  onTap: () {
+                    final currentIndex = values.indexOf(value);
+                    if (currentIndex < values.length - 1) {
+                      onChanged(values[currentIndex + 1]);
+                    }
+                  },
+                  child: Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 16,
+                    color: AppTheme.accent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 滚轮选择器
+          Expanded(
+            child: Stack(
+              children: [
+                // 选中高亮
+                Center(
+                  child: Container(
+                    height: 28,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+                // 滚轮
+                ListWheelScrollView.useDelegate(
+                  itemExtent: 28,
+                  perspective: 0.005,
+                  diameterRatio: 1.2,
+                  physics: const FixedExtentScrollPhysics(),
+                  controller: FixedExtentScrollController(initialItem: initialIndex),
+                  onSelectedItemChanged: (index) {
+                    onChanged(values[index]);
+                  },
+                  childDelegate: ListWheelChildBuilderDelegate(
+                    childCount: values.length,
+                    builder: (context, index) {
+                      final v = values[index];
+                      final isSelected = v == value;
+                      return Center(
+                        child: Text(
+                          isWeight ? _formatWeight(v) : v.toInt().toString(),
+                          style: TextStyle(
+                            fontSize: isSelected ? 14 : 14,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected 
+                                ? AppTheme.accent 
+                                : (widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 单位标签 - 只显示kg，reps不显示文本
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Text(
+              isWeight ? 'kg' : '',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 格式化重量显示
+  String _formatWeight(double value) {
+    if (value == value.roundToDouble()) {
+      return value.round().toString();
+    }
+    return value.toStringAsFixed(1);
+  }
+
   Widget _buildSetItem(TrainingSetData set, int index) {
     if (_isEditing) {
       return Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.only(left: 0, right: 0, top: 1, bottom: 1),
         decoration: BoxDecoration(
           color: widget.isDark ? AppTheme.surfaceDark : AppTheme.secondaryLight,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
-            // Set number
+            // Set number - 最左边
             Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: AppTheme.accent.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
+              width: 24,
+              height: 24,
+
               child: Center(
                 child: Text(
                   '${index + 1}',
                   style: TextStyle(
                     color: AppTheme.accent,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            // Weight input
+            const SizedBox(width: 4),
+            // Weight wheel picker - 进一步加宽
             Expanded(
-              child: TextField(
-                controller: TextEditingController(text: set.weight.toString()),
+              flex: 10,
+              child: _buildMiniWheelPicker(
+                value: set.weight,
+                minValue: 5,
+                maxValue: 300,
+                step: 0.5,
+                isWeight: true,
                 onChanged: (value) {
-                  set.weight = double.tryParse(value) ?? 0;
+                  set.weight = value;
                 },
-                keyboardType: TextInputType.number,
-                style: TextStyle(
-                  color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                  fontSize: 14,
-                ),
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  suffixText: 'kg',
-                  suffixStyle: TextStyle(
-                    color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                    fontSize: 12,
-                  ),
-                  filled: true,
-                  fillColor: widget.isDark ? AppTheme.cardDark : AppTheme.cardLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
               ),
             ),
-            const SizedBox(width: 8),
-            // Reps input
+            const SizedBox(width: 4),
+            // Reps wheel picker - 进一步加宽
             Expanded(
-              child: TextField(
-                controller: TextEditingController(text: set.reps.toString()),
+              flex: 8,
+              child: _buildMiniWheelPicker(
+                value: set.reps.toDouble(),
+                minValue: 1,
+                maxValue: 100,
+                step: 1,
+                isWeight: false,
                 onChanged: (value) {
-                  set.reps = int.tryParse(value) ?? 0;
+                  set.reps = value.toInt();
                 },
-                keyboardType: TextInputType.number,
-                style: TextStyle(
-                  color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
-                  fontSize: 14,
-                ),
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  suffixText: 'reps',
-                  suffixStyle: TextStyle(
-                    color: widget.isDark ? AppTheme.textSecondary : AppTheme.textSecondaryLight,
-                    fontSize: 12,
-                  ),
-                  filled: true,
-                  fillColor: widget.isDark ? AppTheme.cardDark : AppTheme.cardLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
               ),
             ),
-            const SizedBox(width: 8),
-            // Delete button
+            // Delete button - 最右边，紧贴边缘
             IconButton(
               onPressed: () => _deleteSet(index),
               icon: Icon(
                 Icons.delete_outline,
-                size: 18,
+                size: 20,
                 color: Colors.red.shade400,
               ),
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
             ),
           ],
         ),
@@ -512,8 +706,8 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
         children: [
           // Set number
           Container(
-            width: 28,
-            height: 28,
+            width: 24,
+            height: 24,
             decoration: BoxDecoration(
               color: AppTheme.accent.withOpacity(0.2),
               shape: BoxShape.circle,
@@ -529,10 +723,10 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           // Weight and reps
           Text(
-            '${set.weight} kg x ${set.reps} reps',
+            '${set.weight} kg x ${set.reps}',
             style: TextStyle(
               color: widget.isDark ? AppTheme.textPrimary : AppTheme.textPrimaryLight,
               fontSize: 14,
@@ -545,11 +739,27 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
   }
 
   void _addSet() {
+    // Get the last set's values for inheritance
+    double defaultWeight = 20.0;
+    int defaultReps = 8;
+
+    if (_sets.isNotEmpty) {
+      // Inherit from the last set
+      final lastSet = _sets.last;
+      defaultWeight = lastSet.weight;
+      defaultReps = lastSet.reps;
+    }
+
+    // Generate unique ID using UUID
+    const uuid = Uuid();
+    final newId = uuid.v4();
+
+    // Directly add a new set item to the list
     setState(() {
       _sets.add(TrainingSetData(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        weight: 0,
-        reps: 0,
+        id: newId,
+        weight: defaultWeight,
+        reps: defaultReps,
       ));
     });
   }
@@ -580,12 +790,11 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
       
       if (newName != widget.exerciseRecord.exercise!.name || 
           newBodyPartIds != widget.exerciseRecord.exercise!.bodyPartIds) {
-        await db.updateExercise(ExercisesCompanion(
-          id: Value(widget.exerciseRecord.exercise!.id),
-          name: Value(newName),
-          bodyPartIds: Value(newBodyPartIds),
-          createdAt: Value(widget.exerciseRecord.exercise!.createdAt),
-        ));
+        await db.updateExercise(
+          widget.exerciseRecord.exercise!.id,
+          name: newName,
+          bodyPartIds: newBodyPartIds,
+        );
       }
 
       // Update sets
@@ -606,13 +815,12 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
 
         if (existingSet != null) {
           // Update existing set
-          await db.updateSetRecord(SetRecordsCompanion(
-            id: Value(set.id),
-            exerciseRecordId: Value(existingSet.exerciseRecordId),
-            weight: Value(set.weight),
-            reps: Value(set.reps),
-            orderIndex: Value(i),
-          ));
+          await db.updateSetRecord(
+            set.id,
+            weight: set.weight,
+            reps: set.reps,
+            orderIndex: i,
+          );
         } else {
           // Insert new set
           await db.insertSetRecord(SetRecordsCompanion.insert(
@@ -671,13 +879,12 @@ class _TrainingDetailsDialogState extends ConsumerState<TrainingDetailsDialog> {
 
         if (existingSet != null) {
           // Update existing set
-          await db.updateSetRecord(SetRecordsCompanion(
-            id: Value(set.id),
-            exerciseRecordId: Value(existingSet.exerciseRecordId),
-            weight: Value(set.weight),
-            reps: Value(set.reps),
-            orderIndex: Value(i),
-          ));
+          await db.updateSetRecord(
+            set.id,
+            weight: set.weight,
+            reps: set.reps,
+            orderIndex: i,
+          );
         } else {
           // Insert new set
           await db.insertSetRecord(SetRecordsCompanion.insert(

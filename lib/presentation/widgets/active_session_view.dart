@@ -5,11 +5,11 @@ import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
-import 'exercise_card.dart';
-import 'add_exercise_sheet.dart';
+import 'exercise_record_card.dart';
+import 'add_exercise_bottom_sheet.dart';
 
-class ActiveWorkoutView extends ConsumerWidget {
-  const ActiveWorkoutView({super.key});
+class ActiveSessionView extends ConsumerWidget {
+  const ActiveSessionView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -66,7 +66,7 @@ class ActiveWorkoutView extends ConsumerWidget {
           ...sessionState.exercises.asMap().entries.map((entry) {
             final index = entry.key;
             final exerciseInSession = entry.value;
-            return ExerciseCard(
+            return TodayExerciseRecordCard(
               exerciseInSession: exerciseInSession,
               exerciseIndex: index,
             );
@@ -100,7 +100,7 @@ class ActiveWorkoutView extends ConsumerWidget {
         minChildSize: 0.5,
         maxChildSize: 0.9,
         expand: false,
-        builder: (context, scrollController) => AddExerciseSheet(
+        builder: (context, scrollController) => AddExerciseBottomSheet(
           scrollController: scrollController,
           l10n: l10n,
           autoCloseOnAdd: true,

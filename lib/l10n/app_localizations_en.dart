@@ -123,6 +123,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectExercise => 'Select Exercise';
 
   @override
+  String get collapse => 'Collapse';
+
+  @override
+  String get expand => 'Expand';
+
+  @override
   String get addBodyPart => 'Add Body Part';
 
   @override
@@ -148,6 +154,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get hours => 'hours';
+
+  @override
+  String get daysAbbr => 'd';
+
+  @override
+  String get hoursAbbr => 'h';
 
   @override
   String get times => 'times';
@@ -321,6 +333,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncFailed => 'Sync failed';
+
+  @override
+  String get uploaded => 'Uploaded';
+
+  @override
+  String get downloaded => 'Downloaded';
 
   @override
   String get loginSuccess => 'Login successful';

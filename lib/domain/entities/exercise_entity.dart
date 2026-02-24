@@ -1,5 +1,5 @@
-import 'dart:convert';
 import 'package:uuid/uuid.dart';
+import '../../core/utils/body_part_utils.dart';
 
 class ExerciseEntity {
   final String id;
@@ -44,22 +44,7 @@ class ExerciseEntity {
         name: json['name'] as String,
         bodyPartIds: (json['bodyPartIds'] is List) 
             ? List<String>.from(json['bodyPartIds']) 
-            : _parseBodyPartIds(json['bodyPartIds'] as String? ?? '[]'),
+            : BodyPartUtils.parseBodyPartIds(json['bodyPartIds'] as String? ?? '[]'),
         createdAt: DateTime.parse(json['createdAt'] as String),
       );
-
-  /// Parse bodyPartIds from JSON string or List
-  static List<String> _parseBodyPartIds(String? jsonString) {
-    // Handle NULL or empty values
-    if (jsonString == null || jsonString.isEmpty || jsonString == '[]') return [];
-    try {
-      final decoded = jsonDecode(jsonString);
-      if (decoded is List) {
-        return decoded.map((e) => e.toString()).toList();
-      }
-      return [];
-    } catch (e) {
-      return [];
-    }
-  }
 }

@@ -1,6 +1,6 @@
 import '../../data/database/database.dart';
 import '../../core/constants/muscle_constants.dart';
-import 'dart:convert';
+import '../../core/utils/body_part_utils.dart';
 
 /// Data confidence level enum for training points calculation
 enum DataConfidenceLevel {
@@ -22,21 +22,6 @@ class CalculateTrainingPointsUseCase {
   static const double level3Multiplier = 1.5;
 
   CalculateTrainingPointsUseCase(this._db);
-
-  /// Parse bodyPartIds JSON array string to List<String>
-  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
-    // Handle NULL or empty values
-    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
-    try {
-      final decoded = jsonDecode(bodyPartIdsJson);
-      if (decoded is List) {
-        return decoded.map((e) => e.toString()).toList();
-      }
-      return [];
-    } catch (e) {
-      return [];
-    }
-  }
 
   /// Level 1: Fuzzy matching (body part only)
   /// TP = Sum(bodyPart weight) * sqrt(decay factor)
@@ -103,7 +88,7 @@ class CalculateTrainingPointsUseCase {
     if (sets.isEmpty) {
       // Level 1: Only body part
       // Parse bodyPartIds from exercise
-      final bodyPartIds = exercise != null ? _parseBodyPartIds(exercise.bodyPartIds) : <String>[];
+      final bodyPartIds = exercise != null ? BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds) : <String>[];
       return calculateLevel1(bodyPartIds);
     }
 

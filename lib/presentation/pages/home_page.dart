@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/appflowy_theme.dart';
+import '../providers/providers.dart';
 import 'calendar_page.dart';
 import 'today_page.dart';
 import 'analysis_page.dart';
@@ -111,20 +112,64 @@ class _HomePageState extends ConsumerState<HomePage> {
                 label: l10n.analysis,
               ),
               NavigationDestination(
-                icon: Icon(
-                  Icons.event_note_outlined,
-                  color: isDark ? Colors.grey[400] : Colors.grey[600],
-                ),
-                selectedIcon: Icon(
-                  Icons.event_note,
-                  color: MusclockBrandColors.primary,
-                ),
+                icon: _buildPlanIconWithBadge(false, isDark),
+                selectedIcon: _buildPlanIconWithBadge(true, isDark),
                 label: l10n.plan,
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// Build Plan icon with badge showing uncompleted items count
+  Widget _buildPlanIconWithBadge(bool isSelected, bool isDark) {
+    // Watch the uncompleted items count
+    final uncompletedAsync = ref.watch(uncompletedItemsCountProvider);
+    
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(
+          isSelected ? Icons.event_note : Icons.event_note_outlined,
+          color: isSelected 
+              ? MusclockBrandColors.primary 
+              : (isDark ? Colors.grey[400] : Colors.grey[600]),
+        ),
+        // Show badge only when there are uncompleted items
+        uncompletedAsync.when(
+          data: (count) {
+            if (count <= 0) return const SizedBox.shrink();
+            return Positioned(
+              right: -6,
+              top: -8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                constraints: const BoxConstraints(
+                  minWidth: 14,
+                  minHeight: 14,
+                ),
+                child: Text(
+                  count > 9 ? '9+' : count.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+        ),
+      ],
     );
   }
 }

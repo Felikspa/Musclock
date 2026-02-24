@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:appflowy_ui/appflowy_ui.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/theme/appflowy_theme.dart';
 import '../../providers/providers.dart';
 import '../../../data/cloud/providers/auth_state.dart';
 import '../../../data/cloud/providers/sync_state.dart';
@@ -45,6 +46,33 @@ class CloudSettingsContent extends ConsumerWidget {
                     ? () {}
                     : () async {
                         await ref.read(syncStateProvider.notifier).syncAll();
+                        // Get the updated sync state after sync completes
+                        final newState = ref.read(syncStateProvider);
+                        if (!context.mounted) return;
+
+                        if (newState.status == SyncStatusState.success) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '${l10n.syncSuccess}\n'
+                                '${l10n.uploaded}: ${newState.uploadedCount} | '
+                                '${l10n.downloaded}: ${newState.downloadedCount}',
+                              ),
+                              backgroundColor: MusclockBrandColors.primary,
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                        } else if (newState.status == SyncStatusState.error) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '${l10n.syncFailed}: ${newState.errorMessage}',
+                              ),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        }
                       },
               ),
               _buildSettingsTile(

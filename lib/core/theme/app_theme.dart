@@ -3,6 +3,13 @@ import '../../core/enums/muscle_enum.dart';
 import 'app_theme_config.dart';
 
 class AppTheme {
+  // ============================================
+  // Brand Colors (delegated to AppThemeConfig)
+  // ============================================
+  static const Color brandPrimary = AppThemeConfig.brandPrimary;
+  static const Color brandPrimaryLight = AppThemeConfig.brandPrimaryLight;
+  static const Color brandPrimaryDark = AppThemeConfig.brandPrimaryDark;
+
   // Convenience accessors for theme colors (delegated to AppThemeConfig)
   // Primary colors - Dark minimalist theme
   static const Color primaryDark = AppThemeConfig.primaryDark;

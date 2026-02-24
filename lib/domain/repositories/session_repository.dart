@@ -56,8 +56,8 @@ class SessionRepository {
   Future<int> insertExercise(ExercisesCompanion exercise) =>
       _db.insertExercise(exercise);
 
-  Future<bool> updateExercise(ExercisesCompanion exercise) =>
-      _db.updateExercise(exercise);
+  Future<int> updateExercise(String id, {String? name, String? bodyPartIds}) =>
+      _db.updateExercise(id, name: name, bodyPartIds: bodyPartIds);
 
   // ===== BodyPart operations =====
 
@@ -81,8 +81,8 @@ class SessionRepository {
   Future<int> insertSetRecord(SetRecordsCompanion setRecord) =>
       _db.insertSetRecord(setRecord);
 
-  Future<bool> updateSetRecord(SetRecordsCompanion setRecord) =>
-      _db.updateSetRecord(setRecord);
+  Future<int> updateSetRecord(String id, {double? weight, int? reps, int? orderIndex}) =>
+      _db.updateSetRecord(id, weight: weight, reps: reps, orderIndex: orderIndex);
 
   Future<int> deleteSetRecord(String id) => _db.deleteSetRecord(id);
 

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/utils/body_part_utils.dart';
 import '../../data/database/database.dart';
 
 class ExportService {
@@ -105,7 +106,7 @@ class ExportService {
         if (exercise == null) continue;
 
         // Parse bodyPartIds to get the primary body part
-        final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+        final bodyPartIds = BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds);
         final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
         final bodyPart = primaryBodyPartId != null ? await _db.getBodyPartById(primaryBodyPartId) : null;
         final sets = await _db.getSetsByExerciseRecord(record.id);
@@ -128,20 +129,5 @@ class ExportService {
     final directory = await getApplicationDocumentsDirectory();
     final file = File('${directory.path}/$filename');
     return await file.writeAsString(jsonData);
-  }
-
-  /// Parse bodyPartIds JSON array string to List<String>
-  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
-    // Handle NULL or empty values
-    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
-    try {
-      final decoded = jsonDecode(bodyPartIdsJson);
-      if (decoded is List) {
-        return decoded.map((e) => e.toString()).toList();
-      }
-      return [];
-    } catch (e) {
-      return [];
-    }
   }
 }

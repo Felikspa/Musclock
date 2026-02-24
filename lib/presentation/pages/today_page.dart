@@ -8,8 +8,8 @@ import '../../core/utils/date_time_utils.dart';
 import '../providers/providers.dart';
 import '../providers/workout_session_provider.dart';
 import '../widgets/today_session_view.dart';
-import '../widgets/active_workout_view.dart';
-import '../widgets/add_exercise_sheet.dart';
+import '../widgets/active_session_view.dart';
+import '../widgets/add_exercise_bottom_sheet.dart';
 import '../widgets/musclock_app_bar.dart';
 
 class TodayPage extends ConsumerWidget {
@@ -40,7 +40,7 @@ class TodayPage extends ConsumerWidget {
     return Scaffold(
       appBar: MusclockAppBar(title: l10n.today),
       body: sessionState.isActive
-          ? const ActiveWorkoutView()
+          ? const ActiveSessionView()
           : todaySessions.isNotEmpty
               ? TodaySessionView(
                   sessions: todaySessions,
@@ -82,7 +82,7 @@ class TodayPage extends ConsumerWidget {
         minChildSize: 0.5,
         maxChildSize: 0.9,
         expand: false,
-        builder: (context, scrollController) => AddExerciseSheet(
+        builder: (context, scrollController) => AddExerciseBottomSheet(
           scrollController: scrollController,
           l10n: l10n,
         ),

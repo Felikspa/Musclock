@@ -7,7 +7,7 @@ import '../providers/providers.dart';
 import '../providers/settings_storage.dart';
 import '../widgets/musclock_app_bar.dart';
 import '../widgets/plan/plan_selector.dart';
-import '../widgets/plan/plan_details_widget.dart';
+import '../widgets/plan/plan_detail_view.dart';
 import '../widgets/plan/plan_setup_dialog.dart';
 import '../widgets/plan/training_day_picker_dialog.dart';
 import '../../data/database/database.dart';
@@ -34,9 +34,26 @@ class PlanPage extends ConsumerStatefulWidget {
 
 class _PlanPageState extends ConsumerState<PlanPage> {
   @override
+  void initState() {
+    super.initState();
+    // Initialize preset plans in database on first load
+    _initializePresetPlans();
+  }
+
+  Future<void> _initializePresetPlans() async {
+    try {
+      await ref.read(planRepositoryProvider).initializePresetPlans();
+    } catch (e) {
+      // Ignore errors - preset plans may already exist
+      print('DEBUG: initializePresetPlans error: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     final selectedPlan = ref.watch(selectedPlanProvider);
 
     // Get colors from theme
@@ -59,15 +76,14 @@ class _PlanPageState extends ConsumerState<PlanPage> {
         actions: [
           // Execution button (play/stop)
           _buildExecutionButton(context, ref, l10n, isDark, selectedPlan),
-          // Edit button (only show for custom plans)
-          if (!_isPresetPlan(selectedPlan))
-            IconButton(
-              icon: Icon(
-                Icons.edit,
-                color: isDark ? Colors.white70 : Colors.black54,
-              ),
-              onPressed: () => _showEditPlanDialog(context, ref, l10n, isDark, selectedPlan),
+          // Edit button - all plans can be edited now
+          IconButton(
+            icon: Icon(
+              Icons.edit,
+              color: isDark ? Colors.white70 : Colors.black54,
             ),
+            onPressed: () => _showEditPlanDialog(context, ref, l10n, isDark, selectedPlan),
+          ),
         ],
       ),
       body: SafeArea(
@@ -98,7 +114,7 @@ class _PlanPageState extends ConsumerState<PlanPage> {
                 // Plan Details
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: PlanDetailsWidget(
+                  child: PlanDetailView(
                     planName: selectedPlan,
                     isDark: isDark,
                     l10n: l10n,
@@ -137,23 +153,62 @@ class _PlanPageState extends ConsumerState<PlanPage> {
   }
 
   Future<void> _showEditPlanDialog(BuildContext context, WidgetRef ref, AppLocalizations l10n, bool isDark, String planName) async {
-    // Get the plan details
-    final plansAsync = ref.read(plansProvider);
-    final plans = plansAsync.valueOrNull ?? [];
-    final plan = plans.firstWhere(
-      (p) => p.name == planName,
-      orElse: () => throw Exception('Plan not found'),
-    );
+    // Check if this is a preset plan
+    final isPreset = _isPresetPlan(planName);
+    
+    // For preset plans, check if they exist in database; if not, use template data
+    TrainingPlan? plan;
+    if (isPreset) {
+      final plansAsync = ref.read(plansProvider);
+      final plans = plansAsync.valueOrNull ?? [];
+      
+      try {
+        plan = plans.firstWhere((p) => p.name == planName);
+      } catch (_) {
+        // Preset plan not in database - use template data
+        final schedule = WorkoutTemplates.getSchedule(planName);
+        if (schedule != null) {
+          // Create a virtual plan ID for preset plans not in database
+          final virtualPlanId = 'preset_${planName.hashCode}';
+          // Show dialog with template data - it will load items from DB first,
+          // then we need to handle the case where they're not found
+          if (!context.mounted) return;
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => PlanSetupDialog(
+              planId: virtualPlanId,
+              planName: planName,
+              cycleLengthDays: schedule.length,
+              l10n: l10n,
+              isDark: isDark,
+            ),
+          );
+          return;
+        }
+      }
+    } else {
+      // Custom plan - get from database
+      final plansAsync = ref.read(plansProvider);
+      final plans = plansAsync.valueOrNull ?? [];
+      plan = plans.firstWhere(
+        (p) => p.name == planName,
+        orElse: () => throw Exception('Plan not found'),
+      );
+    }
 
     if (!context.mounted) return;
+
+    // At this point, plan should be non-null
+    final planData = plan!;
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => PlanSetupDialog(
-        planId: plan.id,
-        planName: plan.name,
-        cycleLengthDays: plan.cycleLengthDays,
+        planId: planData.id,
+        planName: planData.name,
+        cycleLengthDays: planData.cycleLengthDays,
         l10n: l10n,
         isDark: isDark,
       ),
@@ -250,6 +305,7 @@ class _PlanPageState extends ConsumerState<PlanPage> {
 
         if (selectedDay != null) {
           await SettingsStorage.setActivePresetPlan(selectedPlan, selectedDay);
+          await SettingsStorage.updatePresetPlanExecutedTime(selectedPlan);
           ref.read(activePresetPlanProvider.notifier).state = selectedPlan;
           ref.read(activePresetDayIndexProvider.notifier).state = selectedDay;
         }
@@ -284,6 +340,7 @@ class _PlanPageState extends ConsumerState<PlanPage> {
 
         if (selectedDay != null) {
           await SettingsStorage.setActivePresetPlan(selectedPlan, selectedDay);
+          await SettingsStorage.updatePresetPlanExecutedTime(selectedPlan);
           ref.read(activePresetPlanProvider.notifier).state = selectedPlan;
           ref.read(activePresetDayIndexProvider.notifier).state = selectedDay;
         }
@@ -316,6 +373,8 @@ class _PlanPageState extends ConsumerState<PlanPage> {
       orElse: () => throw Exception('Plan not found'),
     );
 
+    // Update last executed time for sorting
+    await ref.read(planRepositoryProvider).updatePlanLastExecuted(plan.id);
     await ref.read(planRepositoryProvider).setActivePlan(plan.id, dayIndex);
     ref.invalidate(activePlanProvider);
     ref.invalidate(plansProvider);

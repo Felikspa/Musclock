@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:convert';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/date_time_utils.dart';
+import '../../core/utils/body_part_utils.dart';
 import '../../data/database/database.dart';
 import '../../domain/entities/exercise_record_with_session.dart';
 import '../../l10n/app_localizations.dart';
@@ -223,7 +223,7 @@ class SavedSessionCard extends ConsumerWidget {
       final exercise = await db.getExerciseById(record.exerciseId!);
       if (exercise != null) {
         // Parse bodyPartIds to get all body parts
-        final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+        final bodyPartIds = BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds);
         
         // Get all body parts associated with this exercise
         final List<String> bodyPartNames = [];
@@ -261,21 +261,6 @@ class SavedSessionCard extends ConsumerWidget {
     );
   }
 
-  /// Parse bodyPartIds JSON array string to List<String>
-  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
-    // Handle NULL or empty values
-    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
-    try {
-      final decoded = jsonDecode(bodyPartIdsJson);
-      if (decoded is List) {
-        return decoded.map((e) => e.toString()).toList();
-      }
-      return [];
-    } catch (e) {
-      return [];
-    }
-  }
-
   String _formatTime(DateTime time) {
     // 使用工具类将 UTC 时间转换为本地时间后格式化
     return DateTimeUtils.formatTime(time);
@@ -284,12 +269,20 @@ class SavedSessionCard extends ConsumerWidget {
   void _showExerciseDetailsDialog(BuildContext context, WidgetRef ref, ExerciseWithSets exercise) async {
     final db = ref.read(databaseProvider);
     final exerciseId = exercise.record.exerciseId;
-    final exerciseData = exerciseId != null ? await db.getExerciseById(exerciseId) : null;
+    
+    // Skip getExerciseById for body-part-only records (exerciseId starts with "bodyPart:")
+    final isBodyPartOnly = exerciseId != null && exerciseId.startsWith('bodyPart:');
+    final exerciseData = !isBodyPartOnly && exerciseId != null 
+        ? await db.getExerciseById(exerciseId) 
+        : null;
+    
     // Parse bodyPartIds to get all body parts
     BodyPart? bodyPart;
     List<BodyPart> bodyPartsList = [];
+    
     if (exerciseData != null) {
-      final bodyPartIds = _parseBodyPartIds(exerciseData.bodyPartIds);
+      // Normal exercise record - get body parts from exercise
+      final bodyPartIds = BodyPartUtils.parseBodyPartIds(exerciseData.bodyPartIds);
       final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
       bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
       
@@ -300,9 +293,17 @@ class SavedSessionCard extends ConsumerWidget {
           bodyPartsList.add(bp);
         }
       }
+    } else if (isBodyPartOnly) {
+      // Body-part-only record - extract body part ID from "bodyPart:xxx"
+      final bodyPartId = exerciseId.substring('bodyPart:'.length);
+      bodyPart = await db.getBodyPartById(bodyPartId);
+      if (bodyPart != null) {
+        bodyPartsList.add(bodyPart);
+      }
     }
     
-    if (exerciseData != null && context.mounted) {
+    // Show dialog regardless of exerciseData (bodyPart-only records can also be viewed)
+    if (context.mounted) {
       final exerciseRecordWithSession = ExerciseRecordWithSession(
         record: exercise.record,
         session: session,

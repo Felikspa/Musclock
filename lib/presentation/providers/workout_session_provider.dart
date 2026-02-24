@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' show Value;
-import 'dart:convert';
 import '../../data/database/database.dart';
+import '../../core/utils/body_part_utils.dart';
+import '../../core/utils/date_time_utils.dart';
 import '../providers/providers.dart';
 
 // ============ State Classes ============
@@ -98,21 +99,55 @@ final workoutSessionProvider = StateNotifierProvider<WorkoutSessionNotifier, Wor
 class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
   final Ref _ref;
 
-  WorkoutSessionNotifier(this._ref) : super(WorkoutSessionState(startTime: DateTime.now().toUtc()));
+  WorkoutSessionNotifier(this._ref) : super(WorkoutSessionState(startTime: DateTimeUtils.nowUtc));
 
-  /// Parse bodyPartIds JSON array string to List<String>
-  List<String> _parseBodyPartIds(String? bodyPartIdsJson) {
-    // Handle NULL or empty values
-    if (bodyPartIdsJson == null || bodyPartIdsJson.isEmpty || bodyPartIdsJson == '[]') return [];
-    try {
-      final decoded = jsonDecode(bodyPartIdsJson);
-      if (decoded is List) {
-        return decoded.map((e) => e.toString()).toList();
+  /// Load exercises for a given session from the database
+  /// This is a common operation used by multiple methods
+  Future<List<ExerciseInSession>> _loadSessionExercises(String sessionId) async {
+    final db = _ref.read(databaseProvider);
+    final records = await db.getRecordsBySession(sessionId);
+    final exercisesInSession = <ExerciseInSession>[];
+
+    for (final record in records) {
+      // Check if this is a body-part-only record (marked with "bodyPart:" prefix)
+      if (record.exerciseId != null && record.exerciseId!.startsWith('bodyPart:')) {
+        // Extract body part ID from the marker
+        final bodyPartId = record.exerciseId!.substring('bodyPart:'.length);
+        final bodyPart = await db.getBodyPartById(bodyPartId);
+        if (bodyPart != null) {
+          exercisesInSession.add(ExerciseInSession(
+            exerciseRecordId: record.id,
+            exercise: null,  // No specific exercise
+            bodyPart: bodyPart,
+            sets: [],
+          ));
+        }
+      } else {
+        // Normal exercise record
+        final exercise = await db.getExerciseById(record.exerciseId!);
+        if (exercise != null) {
+          // Parse bodyPartIds to get the primary body part
+          final bodyPartIds = BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds);
+          final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
+          final bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
+          final setRecords = await db.getSetsByExerciseRecord(record.id);
+          final setsInSession = setRecords.map((s) => SetInSession(
+            setRecordId: s.id,
+            weight: s.weight,
+            reps: s.reps,
+            orderIndex: s.orderIndex,
+          )).toList();
+          exercisesInSession.add(ExerciseInSession(
+            exerciseRecordId: record.id,
+            exercise: exercise,
+            bodyPart: bodyPart,
+            sets: setsInSession,
+          ));
+        }
       }
-      return [];
-    } catch (e) {
-      return [];
     }
+
+    return exercisesInSession;
   }
 
   Future<void> startNewSession() async {
@@ -158,7 +193,7 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
           final exercise = await db.getExerciseById(record.exerciseId!);
           if (exercise != null) {
             // Parse bodyPartIds to get the primary body part
-            final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+            final bodyPartIds = BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds);
             final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
             final bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
             final setRecords = await db.getSetsByExerciseRecord(record.id);
@@ -246,7 +281,7 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     ));
 
     // Parse bodyPartIds to get all body parts
-    final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+    final bodyPartIds = BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds);
     final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
     final bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
     
@@ -269,6 +304,9 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     state = state.copyWith(
       exercises: [...state.exercises, newExercise],
     );
+
+    // Invalidate todayTrainedMuscleGroupsProvider to refresh Plan page status
+    _ref.invalidate(todayTrainedMuscleGroupsProvider);
   }
 
   /// Add only body part without specific exercise
@@ -296,6 +334,9 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     state = state.copyWith(
       exercises: [...state.exercises, newExercise],
     );
+
+    // Invalidate todayTrainedMuscleGroupsProvider to refresh Plan page status
+    _ref.invalidate(todayTrainedMuscleGroupsProvider);
   }
 
   Future<void> addSet(int exerciseIndex, double weight, int reps) async {
@@ -328,6 +369,9 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     );
 
     state = state.copyWith(exercises: updatedExercises);
+
+    // Invalidate todayTrainedMuscleGroupsProvider to refresh Plan page status
+    _ref.invalidate(todayTrainedMuscleGroupsProvider);
   }
 
   Future<void> deleteSet(int exerciseIndex, int setIndex) async {
@@ -361,6 +405,9 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     updatedExercises[exerciseIndex] = exerciseInSession.copyWith(sets: updatedSets);
 
     state = state.copyWith(exercises: updatedExercises);
+
+    // Invalidate todayTrainedMuscleGroupsProvider to refresh Plan page status
+    _ref.invalidate(todayTrainedMuscleGroupsProvider);
   }
 
   Future<void> deleteExercise(int exerciseIndex) async {
@@ -378,6 +425,9 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     updatedExercises.removeAt(exerciseIndex);
 
     state = state.copyWith(exercises: updatedExercises);
+
+    // Invalidate todayTrainedMuscleGroupsProvider to refresh Plan page status
+    _ref.invalidate(todayTrainedMuscleGroupsProvider);
   }
 
   Future<void> endSession() async {
@@ -393,7 +443,7 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
   }
 
   /// Start a new session with session merge logic (1-hour window)
-  /// This is called from AddExerciseSheet when saving exercises
+  /// This is called from AddExerciseBottomSheet when saving exercises
   /// Returns the session that was either reused or created
   Future<WorkoutSession?> startSessionAndAddExercise() async {
     final db = _ref.read(databaseProvider);
@@ -438,7 +488,7 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
           final exercise = await db.getExerciseById(record.exerciseId!);
           if (exercise != null) {
             // Parse bodyPartIds to get the primary body part
-            final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+            final bodyPartIds = BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds);
             final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
             final bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
             final setRecords = await db.getSetsByExerciseRecord(record.id);
@@ -489,6 +539,24 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
     return WorkoutSession(id: sessionId, startTime: now, createdAt: now, bodyPartIds: '[]');
   }
 
+  /// Continue with the existing session if active, or create a new one
+  /// This is used when adding exercises from AddExerciseBottomSheet
+  /// It respects the existing session's start time (important for past date workouts)
+  Future<WorkoutSession?> continueExistingSession() async {
+    // If there's already an active session in the provider state, use it
+    if (state.sessionId != null && state.isActive) {
+      return WorkoutSession(
+        id: state.sessionId!,
+        startTime: state.startTime,
+        createdAt: state.startTime,
+        bodyPartIds: '[]',
+      );
+    }
+
+    // Otherwise, fall back to creating a new session (same as startSessionAndAddExercise)
+    return startSessionAndAddExercise();
+  }
+
   /// Load an existing session for editing
   /// This is called when user taps on a session card to edit it
   Future<void> loadSessionForEditing(WorkoutSession session) async {
@@ -525,7 +593,7 @@ class WorkoutSessionNotifier extends StateNotifier<WorkoutSessionState> {
         final exercise = await db.getExerciseById(record.exerciseId!);
         if (exercise != null) {
           // Parse bodyPartIds to get the primary body part
-            final bodyPartIds = _parseBodyPartIds(exercise.bodyPartIds);
+            final bodyPartIds = BodyPartUtils.parseBodyPartIds(exercise.bodyPartIds);
             final primaryBodyPartId = bodyPartIds.isNotEmpty ? bodyPartIds.first : null;
             final bodyPart = primaryBodyPartId != null ? await db.getBodyPartById(primaryBodyPartId) : null;
           final setRecords = await db.getSetsByExerciseRecord(record.id);

@@ -1720,6 +1720,18 @@ class $TrainingPlansTable extends TrainingPlans
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _lastExecutedAtMeta = const VerificationMeta(
+    'lastExecutedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastExecutedAt =
+      GeneratedColumn<DateTime>(
+        'last_executed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1729,6 +1741,7 @@ class $TrainingPlansTable extends TrainingPlans
     isActive,
     currentDayIndex,
     startDate,
+    lastExecutedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1795,6 +1808,15 @@ class $TrainingPlansTable extends TrainingPlans
         startDate.isAcceptableOrUnknown(data['start_date']!, _startDateMeta),
       );
     }
+    if (data.containsKey('last_executed_at')) {
+      context.handle(
+        _lastExecutedAtMeta,
+        lastExecutedAt.isAcceptableOrUnknown(
+          data['last_executed_at']!,
+          _lastExecutedAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1832,6 +1854,10 @@ class $TrainingPlansTable extends TrainingPlans
         DriftSqlType.dateTime,
         data['${effectivePrefix}start_date'],
       ),
+      lastExecutedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_executed_at'],
+      ),
     );
   }
 
@@ -1849,6 +1875,7 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
   final bool isActive;
   final int? currentDayIndex;
   final DateTime? startDate;
+  final DateTime? lastExecutedAt;
   const TrainingPlan({
     required this.id,
     required this.name,
@@ -1857,6 +1884,7 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
     required this.isActive,
     this.currentDayIndex,
     this.startDate,
+    this.lastExecutedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1871,6 +1899,9 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
     }
     if (!nullToAbsent || startDate != null) {
       map['start_date'] = Variable<DateTime>(startDate);
+    }
+    if (!nullToAbsent || lastExecutedAt != null) {
+      map['last_executed_at'] = Variable<DateTime>(lastExecutedAt);
     }
     return map;
   }
@@ -1888,6 +1919,9 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
       startDate: startDate == null && nullToAbsent
           ? const Value.absent()
           : Value(startDate),
+      lastExecutedAt: lastExecutedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastExecutedAt),
     );
   }
 
@@ -1904,6 +1938,7 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
       isActive: serializer.fromJson<bool>(json['isActive']),
       currentDayIndex: serializer.fromJson<int?>(json['currentDayIndex']),
       startDate: serializer.fromJson<DateTime?>(json['startDate']),
+      lastExecutedAt: serializer.fromJson<DateTime?>(json['lastExecutedAt']),
     );
   }
   @override
@@ -1917,6 +1952,7 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
       'isActive': serializer.toJson<bool>(isActive),
       'currentDayIndex': serializer.toJson<int?>(currentDayIndex),
       'startDate': serializer.toJson<DateTime?>(startDate),
+      'lastExecutedAt': serializer.toJson<DateTime?>(lastExecutedAt),
     };
   }
 
@@ -1928,6 +1964,7 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
     bool? isActive,
     Value<int?> currentDayIndex = const Value.absent(),
     Value<DateTime?> startDate = const Value.absent(),
+    Value<DateTime?> lastExecutedAt = const Value.absent(),
   }) => TrainingPlan(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1938,6 +1975,9 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
         ? currentDayIndex.value
         : this.currentDayIndex,
     startDate: startDate.present ? startDate.value : this.startDate,
+    lastExecutedAt: lastExecutedAt.present
+        ? lastExecutedAt.value
+        : this.lastExecutedAt,
   );
   TrainingPlan copyWithCompanion(TrainingPlansCompanion data) {
     return TrainingPlan(
@@ -1952,6 +1992,9 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
           ? data.currentDayIndex.value
           : this.currentDayIndex,
       startDate: data.startDate.present ? data.startDate.value : this.startDate,
+      lastExecutedAt: data.lastExecutedAt.present
+          ? data.lastExecutedAt.value
+          : this.lastExecutedAt,
     );
   }
 
@@ -1964,7 +2007,8 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
           ..write('createdAt: $createdAt, ')
           ..write('isActive: $isActive, ')
           ..write('currentDayIndex: $currentDayIndex, ')
-          ..write('startDate: $startDate')
+          ..write('startDate: $startDate, ')
+          ..write('lastExecutedAt: $lastExecutedAt')
           ..write(')'))
         .toString();
   }
@@ -1978,6 +2022,7 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
     isActive,
     currentDayIndex,
     startDate,
+    lastExecutedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1989,7 +2034,8 @@ class TrainingPlan extends DataClass implements Insertable<TrainingPlan> {
           other.createdAt == this.createdAt &&
           other.isActive == this.isActive &&
           other.currentDayIndex == this.currentDayIndex &&
-          other.startDate == this.startDate);
+          other.startDate == this.startDate &&
+          other.lastExecutedAt == this.lastExecutedAt);
 }
 
 class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
@@ -2000,6 +2046,7 @@ class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
   final Value<bool> isActive;
   final Value<int?> currentDayIndex;
   final Value<DateTime?> startDate;
+  final Value<DateTime?> lastExecutedAt;
   final Value<int> rowid;
   const TrainingPlansCompanion({
     this.id = const Value.absent(),
@@ -2009,6 +2056,7 @@ class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
     this.isActive = const Value.absent(),
     this.currentDayIndex = const Value.absent(),
     this.startDate = const Value.absent(),
+    this.lastExecutedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TrainingPlansCompanion.insert({
@@ -2019,6 +2067,7 @@ class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
     this.isActive = const Value.absent(),
     this.currentDayIndex = const Value.absent(),
     this.startDate = const Value.absent(),
+    this.lastExecutedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -2032,6 +2081,7 @@ class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
     Expression<bool>? isActive,
     Expression<int>? currentDayIndex,
     Expression<DateTime>? startDate,
+    Expression<DateTime>? lastExecutedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2042,6 +2092,7 @@ class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
       if (isActive != null) 'is_active': isActive,
       if (currentDayIndex != null) 'current_day_index': currentDayIndex,
       if (startDate != null) 'start_date': startDate,
+      if (lastExecutedAt != null) 'last_executed_at': lastExecutedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2054,6 +2105,7 @@ class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
     Value<bool>? isActive,
     Value<int?>? currentDayIndex,
     Value<DateTime?>? startDate,
+    Value<DateTime?>? lastExecutedAt,
     Value<int>? rowid,
   }) {
     return TrainingPlansCompanion(
@@ -2064,6 +2116,7 @@ class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
       isActive: isActive ?? this.isActive,
       currentDayIndex: currentDayIndex ?? this.currentDayIndex,
       startDate: startDate ?? this.startDate,
+      lastExecutedAt: lastExecutedAt ?? this.lastExecutedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2092,6 +2145,9 @@ class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
     if (startDate.present) {
       map['start_date'] = Variable<DateTime>(startDate.value);
     }
+    if (lastExecutedAt.present) {
+      map['last_executed_at'] = Variable<DateTime>(lastExecutedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2108,6 +2164,7 @@ class TrainingPlansCompanion extends UpdateCompanion<TrainingPlan> {
           ..write('isActive: $isActive, ')
           ..write('currentDayIndex: $currentDayIndex, ')
           ..write('startDate: $startDate, ')
+          ..write('lastExecutedAt: $lastExecutedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4063,6 +4120,7 @@ typedef $$TrainingPlansTableCreateCompanionBuilder =
       Value<bool> isActive,
       Value<int?> currentDayIndex,
       Value<DateTime?> startDate,
+      Value<DateTime?> lastExecutedAt,
       Value<int> rowid,
     });
 typedef $$TrainingPlansTableUpdateCompanionBuilder =
@@ -4074,6 +4132,7 @@ typedef $$TrainingPlansTableUpdateCompanionBuilder =
       Value<bool> isActive,
       Value<int?> currentDayIndex,
       Value<DateTime?> startDate,
+      Value<DateTime?> lastExecutedAt,
       Value<int> rowid,
     });
 
@@ -4148,6 +4207,11 @@ class $$TrainingPlansTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<DateTime> get lastExecutedAt => $composableBuilder(
+    column: $table.lastExecutedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> planItemsRefs(
     Expression<bool> Function($$PlanItemsTableFilterComposer f) f,
   ) {
@@ -4217,6 +4281,11 @@ class $$TrainingPlansTableOrderingComposer
     column: $table.startDate,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get lastExecutedAt => $composableBuilder(
+    column: $table.lastExecutedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TrainingPlansTableAnnotationComposer
@@ -4252,6 +4321,11 @@ class $$TrainingPlansTableAnnotationComposer
 
   GeneratedColumn<DateTime> get startDate =>
       $composableBuilder(column: $table.startDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastExecutedAt => $composableBuilder(
+    column: $table.lastExecutedAt,
+    builder: (column) => column,
+  );
 
   Expression<T> planItemsRefs<T extends Object>(
     Expression<T> Function($$PlanItemsTableAnnotationComposer a) f,
@@ -4314,6 +4388,7 @@ class $$TrainingPlansTableTableManager
                 Value<bool> isActive = const Value.absent(),
                 Value<int?> currentDayIndex = const Value.absent(),
                 Value<DateTime?> startDate = const Value.absent(),
+                Value<DateTime?> lastExecutedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TrainingPlansCompanion(
                 id: id,
@@ -4323,6 +4398,7 @@ class $$TrainingPlansTableTableManager
                 isActive: isActive,
                 currentDayIndex: currentDayIndex,
                 startDate: startDate,
+                lastExecutedAt: lastExecutedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4334,6 +4410,7 @@ class $$TrainingPlansTableTableManager
                 Value<bool> isActive = const Value.absent(),
                 Value<int?> currentDayIndex = const Value.absent(),
                 Value<DateTime?> startDate = const Value.absent(),
+                Value<DateTime?> lastExecutedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TrainingPlansCompanion.insert(
                 id: id,
@@ -4343,6 +4420,7 @@ class $$TrainingPlansTableTableManager
                 isActive: isActive,
                 currentDayIndex: currentDayIndex,
                 startDate: startDate,
+                lastExecutedAt: lastExecutedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

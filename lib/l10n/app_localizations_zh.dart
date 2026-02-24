@@ -123,6 +123,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get selectExercise => '选择动作';
 
   @override
+  String get collapse => '收起';
+
+  @override
+  String get expand => '展开';
+
+  @override
   String get addBodyPart => '添加部位';
 
   @override
@@ -148,6 +154,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get hours => '小时';
+
+  @override
+  String get daysAbbr => '天';
+
+  @override
+  String get hoursAbbr => '小时';
 
   @override
   String get times => '次';
@@ -321,6 +333,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get syncFailed => '同步失败';
+
+  @override
+  String get uploaded => '已上传';
+
+  @override
+  String get downloaded => '已下载';
 
   @override
   String get loginSuccess => '登录成功';

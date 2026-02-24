@@ -8,12 +8,12 @@ import '../../../domain/repositories/session_repository.dart';
 import '../../providers/providers.dart';
 import 'exercise_record_card.dart';
 
-class ExerciseRecordsList extends ConsumerWidget {
+class ExerciseRecordList extends ConsumerWidget {
   final List<WorkoutSession> sessions;
   final bool isDark;
   final AppLocalizations l10n;
 
-  const ExerciseRecordsList({
+  const ExerciseRecordList({
     super.key,
     required this.sessions,
     required this.isDark,
@@ -48,7 +48,7 @@ class ExerciseRecordsList extends ConsumerWidget {
         return ListView.builder(
           itemCount: exerciseRecords.length,
           itemBuilder: (context, index) {
-            return ExerciseRecordCard(
+            return CalendarExerciseRecordCard(
               exerciseRecord: exerciseRecords[index],
               isDark: isDark,
               l10n: l10n,

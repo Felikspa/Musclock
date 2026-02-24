@@ -6,15 +6,15 @@ import '../../../core/enums/muscle_enum.dart';
 import '../../../core/constants/muscle_groups.dart';
 import '../../../data/database/database.dart';
 import '../../providers/providers.dart';
-import 'custom_plan_day_item.dart';
+import 'plan_day_item.dart';
 import '../muscle_group_helper.dart';
 
-class PlanDetailsWidget extends ConsumerWidget {
+class PlanDetailView extends ConsumerWidget {
   final String planName;
   final bool isDark;
   final AppLocalizations l10n;
 
-  const PlanDetailsWidget({
+  const PlanDetailView({
     super.key,
     required this.planName,
     required this.isDark,
@@ -33,12 +33,15 @@ class PlanDetailsWidget extends ConsumerWidget {
   }
 
   Widget _buildPresetPlan(BuildContext context, WidgetRef ref, Map<int, List<MuscleGroup>> schedule) {
-    final locale = Localizations.localeOf(context).languageCode;
-
     // Get active preset plan for highlighting
     final activePresetPlan = ref.watch(activePresetPlanProvider);
-    final activePresetDay = ref.watch(activePresetDayIndexProvider);
     final isThisPresetActive = activePresetPlan == planName;
+    
+    // Get the current training day index for highlighting
+    final currentDayIndex = isThisPresetActive ? ref.watch(activePresetDayIndexProvider) : 0;
+
+    // Get today's trained muscle groups (by name matching)
+    final todayMusclesAsync = ref.watch(todayTrainedMuscleGroupsProvider);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -60,16 +63,18 @@ class PlanDetailsWidget extends ConsumerWidget {
           const SizedBox(height: 12),
           ...schedule.entries.map((entry) => _buildScheduleRow(
             context,
+            ref,
             entry.key,
             entry.value,
-            isHighlighted: isThisPresetActive && entry.key == activePresetDay,
+            isHighlighted: isThisPresetActive && entry.key == currentDayIndex,
+            todayMusclesAsync: todayMusclesAsync,
           )),
         ],
       ),
     );
   }
 
-  Widget _buildScheduleRow(BuildContext context, int dayOfWeek, List<MuscleGroup> muscles, {bool isHighlighted = false}) {
+  Widget _buildScheduleRow(BuildContext context, WidgetRef ref, int dayOfWeek, List<MuscleGroup> muscles, {bool isHighlighted = false, AsyncValue<Set<String>>? todayMusclesAsync}) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.all(12),
@@ -99,7 +104,7 @@ class PlanDetailsWidget extends ConsumerWidget {
           Expanded(
             child: Wrap(
               spacing: 8,
-              children: muscles.map((muscle) => _buildMuscleChip(context, muscle)).toList(),
+              children: muscles.map((muscle) => _buildMuscleChip(context, ref, muscle, isHighlighted: isHighlighted, todayMusclesAsync: todayMusclesAsync)).toList(),
             ),
           ),
         ],
@@ -107,17 +112,51 @@ class PlanDetailsWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildMuscleChip(BuildContext context, MuscleGroup muscle) {
+  Widget _buildMuscleChip(BuildContext context, WidgetRef ref, MuscleGroup muscle, {bool isHighlighted = false, AsyncValue<Set<String>>? todayMusclesAsync}) {
     final color = AppTheme.getMuscleColor(muscle);
+    
+    // Check if this muscle was trained today (only for highlighted day)
+    // Compare using both English and Chinese names
+    bool isCompleted = false;
+    if (isHighlighted && todayMusclesAsync != null) {
+      isCompleted = todayMusclesAsync.when(
+        data: (todayMuscles) {
+          final muscleNameLower = muscle.englishName.toLowerCase();
+          final muscleNameZh = muscle.chineseName;
+          // Check if any trained muscle name contains this muscle group name
+          for (final trained in todayMuscles) {
+            if (trained.contains(muscleNameLower) || trained.contains(muscleNameZh)) {
+              return true;
+            }
+          }
+          return false;
+        },
+        loading: () => false,
+        error: (_, __) => false,
+      );
+    }
+
+    // Use gray color for incomplete, original color for complete
+    final displayColor = (isHighlighted && !isCompleted) ? Colors.grey : color;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: displayColor.withOpacity(0.2),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(
-        _getMuscleName(context, muscle),
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isCompleted) ...[
+            Icon(Icons.check, size: 14, color: displayColor),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            _getMuscleName(context, muscle),
+            style: TextStyle(color: displayColor, fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+        ],
       ),
     );
   }
@@ -193,7 +232,7 @@ class PlanDetailsWidget extends ConsumerWidget {
         // Generate rows for all days in the cycle
         for (int dayIndex = 0; dayIndex < cycleLengthDays; dayIndex++)
           if (itemsMap.containsKey(dayIndex))
-            CustomPlanDayItem(
+            PlanDayItem(
               planItem: itemsMap[dayIndex]!,
               isDark: isDark,
               l10n: l10n,
@@ -344,9 +383,8 @@ class PlanDetailsWidget extends ConsumerWidget {
     );
   }
 
-  String _getDayName(int dayOfWeek) {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    return days[dayOfWeek - 1];
+  String _getDayName(int dayIndex) {
+    return 'Day $dayIndex';
   }
 
   String _getMuscleName(BuildContext context, MuscleGroup muscle) {

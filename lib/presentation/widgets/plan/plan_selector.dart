@@ -3,6 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../providers/providers.dart';
+import '../../providers/settings_storage.dart';
+
+/// Helper class to hold plan info with execution time for sorting
+class _PlanWithTime {
+  final String name;
+  final bool isPreset;
+  final DateTime? lastExecuted;
+  _PlanWithTime({required this.name, required this.isPreset, this.lastExecuted});
+}
 
 class PlanSelector extends ConsumerStatefulWidget {
   final String selectedPlan;
@@ -40,38 +49,67 @@ class _PlanSelectorState extends ConsumerState<PlanSelector> {
       error: (_, __) => null,
     );
 
-    // Build list of custom plan names
-    final customPlanNames = plansAsync.when(
-      data: (plans) => plans.map((p) => p.name).toList(),
-      loading: () => <String>[],
-      error: (_, __) => <String>[],
+    // Get all plans with their execution times for sorting
+    final customPlans = plansAsync.when(
+      data: (plans) => plans,
+      loading: () => <dynamic>[],
+      error: (_, __) => <dynamic>[],
     );
 
-    // Build all plans list: active plan first (if exists), then others
+    // Get preset plan execution times from SettingsStorage
+    final presetExecTimes = SettingsStorage.getLastExecutedPresetPlans();
+
+    // Build list of all plans with execution times
+    final List<_PlanWithTime> allPlansWithTime = [];
+
+    // Add custom plans with their execution times
+    for (final plan in customPlans) {
+      allPlansWithTime.add(_PlanWithTime(
+        name: plan.name,
+        isPreset: false,
+        lastExecuted: plan.lastExecutedAt,
+      ));
+    }
+
+    // Add preset plans with their execution times (only if not already in database)
+    final customPlanNames = customPlans.map((p) => p.name).toSet();
+    for (final presetName in presetPlans) {
+      // Only add preset if not already in database (to avoid duplicates after import)
+      if (!customPlanNames.contains(presetName)) {
+        allPlansWithTime.add(_PlanWithTime(
+          name: presetName,
+          isPreset: true,
+          lastExecuted: presetExecTimes[presetName],
+        ));
+      }
+    }
+
+    // Sort by execution time (most recent first, null at the end)
+    allPlansWithTime.sort((a, b) {
+      if (a.lastExecuted == null && b.lastExecuted == null) return 0;
+      if (a.lastExecuted == null) return 1;
+      if (b.lastExecuted == null) return -1;
+      return b.lastExecuted!.compareTo(a.lastExecuted!);
+    });
+
+    // Extract just the names, but keep executing plans at the top
     final List<String> allPlans = [];
 
-    // Add active custom plan first
-    if (activePlanName != null && customPlanNames.contains(activePlanName)) {
+    // First add the currently executing plans
+    bool hasActiveCustom = activePlanName != null && customPlans.any((p) => p.name == activePlanName);
+    if (hasActiveCustom) {
       allPlans.add(activePlanName);
     }
-    // Add active preset plan next
     if (activePresetPlan != null) {
       if (!allPlans.contains(activePresetPlan)) {
         allPlans.add(activePresetPlan);
       }
     }
 
-    // Add preset plans
-    for (final name in presetPlans) {
-      if (name != activePresetPlan) {
-        allPlans.add(name);
-      }
-    }
-
-    // Add custom plans (not active)
-    for (final name in customPlanNames) {
-      if (name != activePlanName) {
-        allPlans.add(name);
+    // Then add the rest sorted by execution time
+    for (final planWithTime in allPlansWithTime) {
+      if (!allPlans.contains(planWithTime.name)) {
+        allPlans.add(planWithTime.name);
       }
     }
 

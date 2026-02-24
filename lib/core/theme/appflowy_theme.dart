@@ -1,12 +1,14 @@
 import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:flutter/material.dart';
+import 'app_theme_config.dart';
 
-/// Musclock品牌色 - 保持健身应用的绿色主题
+/// MusclockBrandColors - Brand color constants
+/// Now delegates to AppThemeConfig for centralized color management
 class MusclockBrandColors {
-  // 主要品牌色 (Muscle Clock Green)
-  static const Color primary = Color(0xFF00D4AA);
-  static const Color primaryLight = Color(0xFF00FFD4);
-  static const Color primaryDark = Color(0xFF00A080);
+  // 主要品牌色 (Muscle Clock Green) - delegated to AppThemeConfig
+  static const Color primary = AppThemeConfig.brandPrimary;
+  static const Color primaryLight = AppThemeConfig.brandPrimaryLight;
+  static const Color primaryDark = AppThemeConfig.brandPrimaryDark;
 
   // 次要色
   static const Color accent = primary;

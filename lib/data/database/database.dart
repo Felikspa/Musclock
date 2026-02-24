@@ -70,6 +70,8 @@ class TrainingPlans extends Table {
   BoolColumn get isActive => boolean().withDefault(const Constant(false))();
   IntColumn get currentDayIndex => integer().nullable()();
   DateTimeColumn get startDate => dateTime().nullable()();
+  // Last executed time for sorting
+  DateTimeColumn get lastExecutedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -112,10 +114,21 @@ class ExerciseRecordWithDetails {
   PlanItems,
 ])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  // Singleton pattern - ensure only one instance exists
+  static AppDatabase? _instance;
+
+  AppDatabase._internal() : super(_openConnection());
+
+  static AppDatabase get instance {
+    _instance ??= AppDatabase._internal();
+    return _instance!;
+  }
+
+  // Factory constructor for backward compatibility
+  factory AppDatabase() => AppDatabase.instance;
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -138,6 +151,10 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(trainingPlans, trainingPlans.isActive);
           await m.addColumn(trainingPlans, trainingPlans.currentDayIndex);
           await m.addColumn(trainingPlans, trainingPlans.startDate);
+        }
+        if (from < 5) {
+          // Add lastExecutedAt field for sorting plans by execution time
+          await m.addColumn(trainingPlans, trainingPlans.lastExecutedAt);
         }
       },
     );
@@ -248,8 +265,14 @@ class AppDatabase extends _$AppDatabase {
   Future<int> insertExercise(ExercisesCompanion entry) =>
       into(exercises).insert(entry);
   
-  Future<bool> updateExercise(ExercisesCompanion entry) =>
-      update(exercises).replace(entry);
+  Future<int> updateExercise(String id, {String? name, String? bodyPartIds}) async {
+    return (update(exercises)..where((t) => t.id.equals(id))).write(
+      ExercisesCompanion(
+        name: name != null ? Value(name) : const Value.absent(),
+        bodyPartIds: bodyPartIds != null ? Value(bodyPartIds) : const Value.absent(),
+      ),
+    );
+  }
 
   // ============ WorkoutSession Operations ============
   
@@ -339,8 +362,15 @@ class AppDatabase extends _$AppDatabase {
   Future<int> insertSetRecord(SetRecordsCompanion entry) =>
       into(setRecords).insert(entry);
   
-  Future<bool> updateSetRecord(SetRecordsCompanion entry) =>
-      update(setRecords).replace(entry);
+  Future<int> updateSetRecord(String id, {double? weight, int? reps, int? orderIndex}) async {
+    return (update(setRecords)..where((t) => t.id.equals(id))).write(
+      SetRecordsCompanion(
+        weight: weight != null ? Value(weight) : const Value.absent(),
+        reps: reps != null ? Value(reps) : const Value.absent(),
+        orderIndex: orderIndex != null ? Value(orderIndex) : const Value.absent(),
+      ),
+    );
+  }
   
   Future<int> deleteSetRecord(String id) =>
       (delete(setRecords)..where((t) => t.id.equals(id))).go();
@@ -416,6 +446,14 @@ class AppDatabase extends _$AppDatabase {
     await (update(trainingPlans)..where((t) => t.isActive.equals(true)))
         .write(TrainingPlansCompanion(
       currentDayIndex: Value(dayIndex),
+    ));
+  }
+
+  /// Update the last executed time for a plan (used for sorting)
+  Future<void> updatePlanLastExecuted(String planId) async {
+    await (update(trainingPlans)..where((t) => t.id.equals(planId)))
+        .write(TrainingPlansCompanion(
+      lastExecutedAt: Value(DateTime.now().toUtc()),
     ));
   }
 
